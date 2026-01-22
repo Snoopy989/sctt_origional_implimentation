@@ -5,7 +5,7 @@ CAVEATS:
 - currently doesn't do stratefied sampling of the prompts--it's just random subset
 """
 import pandas as pd
-from datasets import Dataset, Features, ClassLabel, Value, load_metric, DatasetDict
+from datasets import Dataset, Features, ClassLabel, Value, DatasetDict
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 #  LOAD TOOLS
@@ -52,14 +52,14 @@ def preprocess_llm_data(d, gen, val_pct, val_train_pct, test_pct, prefix, connec
 
     #  TRAIN/VAL/TEST SPLIT
     features = Features({"ID": Value("string"),
-                         "item": ClassLabel(num_classes = len(list(d.item.unique())), names = list(d.item.unique())),
-                         "prompt": ClassLabel(num_classes = len(list(d.prompt.unique())), names = list(d.prompt.unique())),
+                         "item": Value("string"),
+                         "prompt": Value("string"),
                          "response": Value("string"),
                          "jrt": Value("float32"),
                          "text": Value("string"),
                          "label": Value("float32")})  # define dataset features
     features_heldout = Features({"ID": Value("string"),
-                                 "item": ClassLabel(num_classes = len(list(gen.item.unique())), names = list(gen.item.unique())),
+                                 "item": Value("string"),
                                  "prompt": Value("string"),
                                  "response": Value("string"),
                                  "text": Value("string"),

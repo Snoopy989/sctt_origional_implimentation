@@ -1,11 +1,22 @@
-import bitsandbytes as bnb
+# Workaround for bitsandbytes Windows compatibility issues
+class DummyBnbModule:
+    def __getattr__(self, name):
+        return None
+
+try:
+    import bitsandbytes as bnb
+    if not hasattr(bnb, 'nn'):
+        bnb.nn = DummyBnbModule()
+except:
+    pass
+
 import evaluate
 import numpy as np
 import os
 import pandas as pd
 import sys
 import torch
-from datasets import Dataset, load_metric, DatasetDict
+from datasets import Dataset, DatasetDict
 from dataprocessing import preprocess_llm_data
 from functools import partial
 from misc import *

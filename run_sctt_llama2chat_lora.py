@@ -1,14 +1,27 @@
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # set GPU import quant import torch import torch.nn as nn
+
+# Workaround for bitsandbytes Windows compatibility issues
+import sys
+class DummyBnbModule:
+    def __getattr__(self, name):
+        return None
+        
+try:
+    import bitsandbytes as bnb
+    if not hasattr(bnb, 'nn'):
+        bnb.nn = DummyBnbModule()
+except:
+    pass
+
 from dotenv import load_dotenv
-import bitsandbytes as bnb
 import evaluate
 import numpy as np
 import pandas as pd
 import sys
 import torch
 torch.cuda.empty_cache()
-from datasets import Dataset, load_metric, DatasetDict
+from datasets import Dataset, DatasetDict
 from dataprocessing import preprocess_llm_data
 from functools import partial
 from lora_misc import *
@@ -38,18 +51,21 @@ device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("
 scaler = MinMaxScaler()
 expname = "LORA_{}_epochs".format(epochs)
 trainer_args = TrainingArguments(
-  evaluation_strategy = "steps",
+  eval_strategy = "steps",
   eval_steps = 1000,
   save_strategy="steps",
   save_steps = 1000,
   learning_rate = 5e-5,
-  per_device_train_batch_size=4,
-  per_device_eval_batch_size=4,
+  per_device_train_batch_size=1,  # Reduced to avoid OOM
+  per_device_eval_batch_size=1,
+  gradient_accumulation_steps=4,  # Effective batch size = 4
   warmup_steps = 1000,
   fp16 = True,
   num_train_epochs = epochs,
   load_best_model_at_end = True,
   output_dir='./sctt_results_{}_{}'.format(expname,model_name.split('/')[1]),
+  logging_steps=10,  # Log more frequently
+  dataloader_num_workers=0,  # Windows compatibility
 )
 r = 4
 lora_alpha = 32
@@ -61,6 +77,8 @@ gen = pd.read_csv('sctt_item-generalization_jrt.csv')
 
 #  INITIALIZE MODEL & TOKENIZER (PRE-TRAINED)
 model, tokenizer = load_model(model_name, config, hftoken)
+# Explicitly move model to GPU
+model = model.to(device)
 max_length = int(get_max_length(model)/max_length_divisor)
 
 #  GENERATE PEFT CONFIG & PEFT MODEL
@@ -71,9 +89,12 @@ print(model.print_trainable_parameters())
 
 #  PREPROCESS DATA
 def tokenize_function(examples): #  define wrapper tokenizer function (for batch training)
-  # return tokenizer(examples['text'], max_length = max_length, padding = 'max_length', truncation = True)
-  return tokenizer(examples['text'], padding = 'max_length', truncation = True)
+  # Filter out None values and convert to strings
+  texts = [str(text) if text is not None else "" for text in examples['text']]
+  return tokenizer(texts, padding = 'max_length', truncation = True, max_length = 512)
 d = preprocess_llm_data(d, gen, val_pct, val_train_pct, test_pct, prefix, connector1, connector2)
+# Filter out rows with None text values before tokenizing
+d = d.filter(lambda example: example['text'] is not None and example['text'] != '')
 tokenized_datasets = d.map(tokenize_function, batched = True) # applies wrapper to our dataset
 
 #  TRAIN MODEL
@@ -85,7 +106,17 @@ trainer = Trainer(
   compute_metrics=compute_metrics,
   tokenizer=tokenizer,
 )
-trainer.train()
+
+# Check for existing checkpoints and resume if available
+import glob
+checkpoint_dirs = glob.glob('./sctt_results_{}_{}/checkpoint-*'.format(expname,model_name.split('/')[1]))
+if checkpoint_dirs:
+    latest_checkpoint = max(checkpoint_dirs, key=os.path.getctime)
+    print(f"\n✓ Resuming training from checkpoint: {latest_checkpoint}\n")
+    trainer.train(resume_from_checkpoint=latest_checkpoint)
+else:
+    print("\n✓ Starting training from scratch\n")
+    trainer.train()
 
 # VALIDATION
 val_prediction = trainer.predict(tokenized_datasets['validation'])

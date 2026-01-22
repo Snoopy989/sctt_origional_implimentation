@@ -7,7 +7,7 @@ import pandas as pd
 import sys
 import torch
 torch.cuda.empty_cache()
-from datasets import Dataset, load_metric, DatasetDict
+from datasets import Dataset, DatasetDict
 from dataprocessing import preprocess_llm_data
 from functools import partial
 from lora_misc import *
