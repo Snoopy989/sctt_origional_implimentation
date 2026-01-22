@@ -27,7 +27,7 @@ from functools import partial
 from lora_misc import *
 from pynvml import *
 from sklearn.preprocessing import MinMaxScaler
-from transformers import AutoTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer, LlamaConfig
+from transformers import AutoTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer, AutoConfig
 from transformers.trainer_pt_utils import get_parameter_names
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, AutoPeftModelForSequenceClassification
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, Trainer, TrainingArguments, BitsAndBytesConfig,DataCollatorForLanguageModeling, Trainer, TrainingArguments
@@ -37,7 +37,9 @@ load_dotenv()  # Load environment variables from .env file
 np.random.seed(42) # sets a randomization seed for reproducibility
 model_name = os.getenv('MODEL_NAME', 'meta-llama/Llama-2-7b-chat-hf')
 hftoken = os.getenv('HF_TOKEN')
-config = LlamaConfig(model_name, problem_type = "regression")
+config = AutoConfig.from_pretrained(model_name, token=hftoken)
+config.num_labels = 1
+config.problem_type = "regression"
 # model_names = ['meta-llama/Llama-2-7b-hf', 'meta-llama/Llama-2-7b-chat-hf']
 epochs = 10
 val_pct = 0.10 # proportion of total dataset allocated to validation
@@ -60,7 +62,8 @@ trainer_args = TrainingArguments(
   per_device_eval_batch_size=1,
   gradient_accumulation_steps=4,  # Effective batch size = 4
   warmup_steps = 1000,
-  fp16 = True,
+  bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
+  fp16 = not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()),
   num_train_epochs = epochs,
   load_best_model_at_end = True,
   output_dir='./sctt_results_{}_{}'.format(expname,model_name.split('/')[1]),
@@ -79,6 +82,10 @@ gen = pd.read_csv('sctt_item-generalization_jrt.csv')
 model, tokenizer = load_model(model_name, config, hftoken)
 # Explicitly move model to GPU
 model = model.to(device)
+# Save VRAM during training
+model.gradient_checkpointing_enable()
+if getattr(model, "config", None) is not None:
+  model.config.use_cache = False
 max_length = int(get_max_length(model)/max_length_divisor)
 
 #  GENERATE PEFT CONFIG & PEFT MODEL

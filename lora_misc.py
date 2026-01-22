@@ -29,10 +29,21 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, set_
 
 
 def load_model(model_name, config, hftoken):
+    # Prefer BF16 on A100/Hopper to reduce VRAM and avoid FP16 GradScaler issues.
+    if torch.cuda.is_available():
+        torch_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    else:
+        torch_dtype = None
+
+    from_pretrained_kwargs = {"config": config}
+    if torch_dtype is not None:
+        from_pretrained_kwargs["torch_dtype"] = torch_dtype
+    if hftoken:
+        from_pretrained_kwargs["token"] = hftoken
+
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name,
-        num_labels=1
-        # config=config,
+        **from_pretrained_kwargs,
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name, token = hftoken)
 
