@@ -1,5 +1,8 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # set GPU import quant import torch import torch.nn as nn
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+import torch
+import torch.nn as nn
 
 # Workaround for bitsandbytes Windows compatibility issues
 import sys
@@ -24,7 +27,7 @@ torch.cuda.empty_cache()
 from datasets import Dataset, DatasetDict
 from dataprocessing import preprocess_llm_data
 from functools import partial
-from lora_misc import *
+from lora_misc_llama4 import *
 from pynvml import *
 from sklearn.preprocessing import MinMaxScaler
 from transformers import AutoTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer, AutoConfig
@@ -70,6 +73,7 @@ trainer_args = TrainingArguments(
   output_dir='./sctt_results_{}_{}'.format(expname,model_name.split('/')[1]),
   logging_steps=10,  # Log more frequently
   dataloader_num_workers=0,  # Windows compatibility
+  ddp_find_unused_parameters=False,  # Important for models with device_map
 )
 r = 4
 lora_alpha = 32
@@ -81,8 +85,7 @@ gen = pd.read_csv('sctt_item-generalization_jrt.csv')
 
 #  INITIALIZE MODEL & TOKENIZER (PRE-TRAINED)
 model, tokenizer = load_model(model_name, config, hftoken)
-# Explicitly move model to GPU
-model = model.to(device)
+
 # Save VRAM during training
 model.gradient_checkpointing_enable()
 if getattr(model, "config", None) is not None:
@@ -106,6 +109,10 @@ d = d.filter(lambda example: example['text'] is not None and example['text'] != 
 tokenized_datasets = d.map(tokenize_function, batched = True) # applies wrapper to our dataset
 
 #  TRAIN MODEL
+# Mark model as already on device to prevent Trainer from trying to move it
+model.is_parallelizable = True
+model.model_parallel = True
+
 trainer = Trainer(
   model=model,
   args=trainer_args,
