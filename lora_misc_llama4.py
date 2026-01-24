@@ -26,6 +26,7 @@ from transformers import AutoTokenizer, TrainingArguments, Trainer
 from transformers.trainer_pt_utils import get_parameter_names
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import Llama4TextModel, set_seed, BitsAndBytesConfig
+from transformers.modeling_outputs import SequenceClassifierOutput
 
 
 class Llama4ForRegression(torch.nn.Module):
@@ -71,11 +72,11 @@ class Llama4ForRegression(torch.nn.Module):
             loss_fct = torch.nn.MSELoss()
             loss = loss_fct(logits.squeeze(), labels.squeeze())
         
-        # Return in Transformers-compatible format
-        return type('ModelOutput', (), {
-            'loss': loss, 
-            'logits': logits,
-        })()
+        # Return proper SequenceClassifierOutput for Trainer compatibility
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+        )
     
     def prepare_inputs_for_generation(self, *args, **kwargs):
         """Delegate to base model for PEFT compatibility"""
@@ -114,9 +115,9 @@ def load_model(model_name, config, hftoken):
     if hftoken:
         from_pretrained_kwargs["token"] = hftoken
     
-    # Add device_map to load model on GPU
-    if torch.cuda.is_available():
-        from_pretrained_kwargs["device_map"] = "auto"
+    # REMOVED: device_map="auto" causes meta tensor issues
+    # Instead use low_cpu_mem_usage for memory efficiency
+    from_pretrained_kwargs["low_cpu_mem_usage"] = True
 
     print(f"Loading {model_name} with dtype={dtype}...")
     print("This may take 10-20 minutes for 17B model...")
@@ -127,6 +128,10 @@ def load_model(model_name, config, hftoken):
         **from_pretrained_kwargs,
     )
     
+    # Move to GPU explicitly after loading
+    if torch.cuda.is_available():
+        base_model = base_model.to("cuda:0")
+    
     print(f"✓ Base model loaded on device: {base_model.device}")
     print(f"Model memory footprint: {base_model.get_memory_footprint() / 1e9:.2f} GB")
     
@@ -135,7 +140,7 @@ def load_model(model_name, config, hftoken):
     
     # Move regression head to same device as base model
     if torch.cuda.is_available():
-        model.regression_head = model.regression_head.to('cuda:0')
+        model.regression_head = model.regression_head.to("cuda:0")
     
     print("="*50)
     print(f"✓ Model loaded on device: {next(model.parameters()).device}")
@@ -151,7 +156,6 @@ def load_model(model_name, config, hftoken):
         tokenizer.pad_token_id = tokenizer.eos_token_id
 
     return model, tokenizer
-
 
 def get_max_length(model):
     """Get maximum sequence length from model config"""
@@ -185,8 +189,8 @@ def find_all_linear_names(model):
             names = name.split('.')
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
 
-    # Remove output heads
-    exclude_names = {'lm_head', 'regression_head'}
+    # Remove output heads and router (router returns tuple, incompatible with LoRA)
+    exclude_names = {'lm_head', 'regression_head', 'router'}
     lora_module_names = lora_module_names - exclude_names
     
     print(f"LoRA target modules: {lora_module_names}")
