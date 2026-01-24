@@ -27,10 +27,10 @@ torch.cuda.empty_cache()
 from datasets import Dataset, DatasetDict
 from dataprocessing import preprocess_llm_data
 from functools import partial
-from lora_misc_llama4 import *
+from lora_misc_llama2_14b import *
 from pynvml import *
 from sklearn.preprocessing import MinMaxScaler
-from transformers import AutoTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer, AutoConfig
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer, AutoConfig
 from transformers.trainer_pt_utils import get_parameter_names
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, AutoPeftModelForSequenceClassification
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, Trainer, TrainingArguments, BitsAndBytesConfig,DataCollatorForLanguageModeling, Trainer, TrainingArguments
@@ -39,7 +39,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, Trainer,
 torch.cuda.empty_cache() # Clear GPU memory
 load_dotenv()  # Load environment variables from .env file
 np.random.seed(42) # sets a randomization seed for reproducibility
-model_name = 'meta-llama/Llama-4-Scout-17B-16E-Instruct'
+model_name = 'meta-llama/Llama-2-13b-chat-hf'
 hftoken = os.getenv('HF_TOKEN')
 config = AutoConfig.from_pretrained(model_name, token=hftoken)
 config.num_labels = 1
@@ -84,7 +84,14 @@ d = pd.read_csv('all_sctt_jrt.csv')
 gen = pd.read_csv('sctt_item-generalization_jrt.csv')
 
 #  INITIALIZE MODEL & TOKENIZER (PRE-TRAINED)
-model, tokenizer = load_model(model_name, config, hftoken)
+model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config, token=hftoken)
+tokenizer = AutoTokenizer.from_pretrained(model_name, token=hftoken)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
+# Add missing method for PEFT compatibility
+if not hasattr(model, 'prepare_inputs_for_generation'):
+    model.prepare_inputs_for_generation = lambda *args, **kwargs: {}
 
 # Save VRAM during training
 model.gradient_checkpointing_enable()
