@@ -1,6 +1,5 @@
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # set GPU import quant import torch import torch.nn as nn
-import bitsandbytes as bnb
 import evaluate
 import numpy as np
 import pandas as pd
@@ -10,20 +9,21 @@ torch.cuda.empty_cache()
 from datasets import Dataset, DatasetDict
 from dataprocessing import preprocess_llm_data
 from functools import partial
-from lora_misc import *
+from lora_misc_llama2_13b import *
 from pynvml import *
 from sklearn.preprocessing import MinMaxScaler
-from transformers import AutoTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer, LlamaConfig
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, LlamaForSequenceClassification, TrainingArguments, Trainer, LlamaConfig
 from transformers.trainer_pt_utils import get_parameter_names
 from peft import PeftConfig, PeftModel, LoraConfig, get_peft_model, prepare_model_for_kbit_training, AutoPeftModelForSequenceClassification
-from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, Trainer, TrainingArguments, BitsAndBytesConfig,DataCollatorForLanguageModeling, Trainer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 
 #  SETTINGS
 np.random.seed(42) # sets a randomization seed for reproducibility
-model_name = 'meta-llama/Llama-2-7b-hf'
-checkpoints_dirs = ['sctt_results_LORA_10_epochs_Llama-2-7b-hf',
-                    'sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf']
-config = LlamaConfig(model_name, problem_type = "regression")
+model_name = 'meta-llama/Llama-2-13b-chat-hf'
+checkpoints_dirs = ['sctt_results_LORA_10_epochs_Llama-2-13b-chat-hf']
+config = LlamaConfig.from_pretrained(model_name)
+config.num_labels = 1
+config.problem_type = "regression"
 # model_names = ['meta-llama/Llama-2-7b-hf', 'meta-llama/Llama-2-7b-chat-hf']
 epochs = 10
 val_pct = 0.10 # proportion of total dataset allocated to validation
@@ -39,7 +39,8 @@ test_args = TrainingArguments(
   do_train = False,
   do_predict = True,
   per_device_eval_batch_size=4,
-  fp16 = True,
+  bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
+  fp16 = False,
   output_dir='./sctt_results_{}_{}'.format(expname,model_name.split('/')[1]),
 )
 

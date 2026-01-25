@@ -25,7 +25,7 @@ from sklearn.preprocessing import MinMaxScaler
 from transformers import AutoTokenizer, TrainingArguments, Trainer
 from transformers.trainer_pt_utils import get_parameter_names
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from transformers import LlamaModel, set_seed
+from transformers import LlamaModel, set_seed, BitsAndBytesConfig
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 
@@ -210,22 +210,20 @@ def create_peft_config(r, lora_alpha, lora_dropout, modules):
     return config
 
 
+
 def compute_metrics(eval_pred):
-    mse_metric = evaluate.load("mse")
     predictions, labels = eval_pred
     predictions = predictions.flatten()
     labels = labels.flatten()
     
-    # Remove 'squared=False' parameter - just use MSE directly
-    mse = mse_metric.compute(predictions=predictions, references=labels)
-    
-    # For RMSE, manually take square root
-    rmse = np.sqrt(mse['mse'])
+    # Compute MSE and RMSE directly without evaluate library
+    mse = np.mean((predictions - labels) ** 2)
+    rmse = np.sqrt(mse)
     
     corr = np.corrcoef(predictions, labels)[0][1]
     
     return {
-        'mse': mse['mse'],
+        'mse': mse,
         'rmse': rmse,
         'corr': corr
     }

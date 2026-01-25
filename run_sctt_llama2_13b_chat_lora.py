@@ -27,13 +27,13 @@ torch.cuda.empty_cache()
 from datasets import Dataset, DatasetDict
 from dataprocessing import preprocess_llm_data
 from functools import partial
-from lora_misc_llama2_14b import *
+from lora_misc_llama2_13b import *
 from pynvml import *
 from sklearn.preprocessing import MinMaxScaler
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer, AutoConfig
 from transformers.trainer_pt_utils import get_parameter_names
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, AutoPeftModelForSequenceClassification
-from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, Trainer, TrainingArguments, BitsAndBytesConfig,DataCollatorForLanguageModeling, Trainer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 
 #  SETTINGS
 torch.cuda.empty_cache() # Clear GPU memory
@@ -54,17 +54,28 @@ prefix = "A creative "
 connector1 = " for "
 connector2 = " is " # we'll use prefix/conn to construct inputs to the model
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")  # setting for whether to use gpu or cpu
+
+
+print("CUDA available:", torch.cuda.is_available())
+print("CUDA device count:", torch.cuda.device_count())
+if torch.cuda.is_available():
+    print("CUDA device name:", torch.cuda.get_device_name(0))
+else:
+    raise RuntimeError("CUDA not available. Check drivers and PyTorch version.")
+
+
+
 scaler = MinMaxScaler()
 expname = "LORA_{}_epochs".format(epochs)
 trainer_args = TrainingArguments(
-  eval_strategy = "steps",
+  evaluation_strategy = "steps",
   eval_steps = 1000,
   save_strategy="steps",
   save_steps = 1000,
   learning_rate = 5e-5,
-  per_device_train_batch_size=1,  # Reduced to avoid OOM
-  per_device_eval_batch_size=1,
-  gradient_accumulation_steps=4,  # Effective batch size = 4
+  per_device_train_batch_size=4,  # Reduced to avoid OOM
+  per_device_eval_batch_size=4,
+  gradient_accumulation_steps=1,  # Effective batch size = 4
   warmup_steps = 1000,
   bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
   fp16 = not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()),
@@ -84,8 +95,8 @@ d = pd.read_csv('all_sctt_jrt.csv')
 gen = pd.read_csv('sctt_item-generalization_jrt.csv')
 
 #  INITIALIZE MODEL & TOKENIZER (PRE-TRAINED)
-model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config, token=hftoken)
-tokenizer = AutoTokenizer.from_pretrained(model_name, token=hftoken)
+model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config, use_auth_token=hftoken)
+tokenizer = AutoTokenizer.from_pretrained(model_name, use_auth_token=hftoken)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 

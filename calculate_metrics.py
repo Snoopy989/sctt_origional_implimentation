@@ -15,7 +15,7 @@ def main():
     splits = ['test', 'validation']
 
     for split in splits:
-        file_path = f'{split}_output_sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf.csv'
+        file_path = f'{split}_output_sctt_results_LORA_10_epochs_Llama-2-13b-chat-hf.csv'
         try:
             df = pd.read_csv(file_path)
             preds = df['preds'].values
