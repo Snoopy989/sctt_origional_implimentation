@@ -1,4 +1,4 @@
-torch>=2.0.0
+# Pytorch is handeled by cuda_install.py
 transformers>=4.30.0
 datasets>=2.14.0
 peft>=0.4.0
