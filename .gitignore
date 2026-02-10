@@ -14,6 +14,8 @@ __pycache__/
 
 # Model outputs
 sctt_results_*/
+final_model_*/
+checkpoint-*/
 *.csv
 !all_sctt_jrt.csv
 !sctt_item-generalization_jrt.csv
@@ -21,6 +23,16 @@ sctt_results_*/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# PyTorch
+# PyTorch & Model Files
 *.pth
 *.pt
+*.bin
+*.safetensors
+*.onnx
+*.h5
+*.msgpack
+*.ckpt
+
+# Hugging Face cache
+.cache/
+transformers_cache/
