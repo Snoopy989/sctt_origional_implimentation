@@ -4,18 +4,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
 import torch.nn as nn
 
-# Workaround for bitsandbytes Windows compatibility issues
+# bitsandbytes not needed - using full precision training
 import sys
-class DummyBnbModule:
-    def __getattr__(self, name):
-        return None
-        
-try:
-    import bitsandbytes as bnb
-    if not hasattr(bnb, 'nn'):
-        bnb.nn = DummyBnbModule()
-except:
-    pass
 
 from dotenv import load_dotenv
 import evaluate

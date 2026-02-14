@@ -1,14 +1,4 @@
-# Workaround for bitsandbytes Windows compatibility issues
-class DummyBnbModule:
-    def __getattr__(self, name):
-        return None
-
-try:
-    import bitsandbytes as bnb
-    if not hasattr(bnb, 'nn'):
-        bnb.nn = DummyBnbModule()
-except:
-    pass
+# bitsandbytes not used in this file - removed for Windows compatibility
 
 import evaluate
 import numpy as np

@@ -17,6 +17,9 @@ Fine-tuning Llama-2 models with LoRA for Scientific Creative Thinking Task (SCTT
 ## Setup
 
 ### 1. Get Llama-2 Access
+
+Start .env: .venv\Scripts\Activate.ps1
+
 1. Visit [meta-llama/Llama-2-7b-chat-hf](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf)
 2. Request access and accept Meta's license
 3. Create a HuggingFace token at [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
