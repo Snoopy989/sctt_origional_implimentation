@@ -4,6 +4,7 @@ CAVEATS:
 - no standardization of rater-wise basis for severity
 - currently doesn't do stratefied sampling of the prompts--it's just random subset
 """
+import os
 import pandas as pd
 from datasets import Dataset, Features, ClassLabel, Value, DatasetDict
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -14,14 +15,17 @@ mmscaler = MinMaxScaler()
 
 def preprocess_llm_data(d, gen, val_pct, val_train_pct, test_pct, prefix, connector1, connector2):
 
+    # Create data directory if it doesn't exist
+    os.makedirs('data', exist_ok=True)
+    
     #  PROCESS DUPES
     dupes = d[d.duplicated(subset = ['item','task', 'prompt','response'], keep = False)]  # select out the dupes
-    dupes.to_csv('d_dupes.csv', index = False)
+    dupes.to_csv('data/d_dupes.csv', index = False)
     dupes[['study_id', 'sub_id', 'response_id', 'ID']] = 'dupe_average'
     print(dupes.head())
     dupes_avg = dupes.groupby(['item', 'task', 'prompt', 'response'], as_index=False).agg({'study_id': 'first', 'sub_id': 'first', 'response_id': 'first', 'ID': 'first', 'jrt': 'mean'}).reset_index(drop = True)  # get avg jrt across dupe'd responses
     print(dupes_avg.head())
-    dupes_avg.to_csv('d_dupes_avg.csv', index = False)
+    dupes_avg.to_csv('data/d_dupes_avg.csv', index = False)
     d = d.drop(list(dupes.index), axis = 0)  # drop all items at the dup'd indices
     d = pd.concat([d, dupes_avg]).reset_index(drop = True)  # combine avg dupes with filtered df
 
@@ -34,7 +38,7 @@ def preprocess_llm_data(d, gen, val_pct, val_train_pct, test_pct, prefix, connec
     d = d[['ID', 'item', 'prompt', 'response', 'jrt', 'text', 'label']]
     d.dropna()
     print(d.info())
-    d.to_csv('sctt_jrt_cleaned.csv', index = False)
+    d.to_csv('data/sctt_jrt_cleaned.csv', index = False)
 
     #  SETUP held out item generalization set
     print(gen.head())
@@ -76,10 +80,10 @@ def preprocess_llm_data(d, gen, val_pct, val_train_pct, test_pct, prefix, connec
     })
 
     ## SAVE CSV COPIES OF DATA FOR SEMDIS/ELABORATION
-    dataset_val['train'].to_csv('training_items_sctt.csv')
-    dataset_val['test'].to_csv('validation_items_sctt.csv')
-    dataset['test'].to_csv('test_items_sctt.csv')
-    heldout_dataset.to_csv('heldoutprompt_items_sctt.csv')
+    dataset_val['train'].to_csv('data/training_items_sctt.csv')
+    dataset_val['test'].to_csv('data/validation_items_sctt.csv')
+    dataset['test'].to_csv('data/test_items_sctt.csv')
+    heldout_dataset.to_csv('data/heldoutprompt_items_sctt.csv')
 
     #  REMOVE UNECESSARY COLUMNS
     for i in train_val_test_dataset:
