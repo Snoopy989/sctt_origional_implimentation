@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # set GPU import quant import torch import torch.nn as nn
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # set GPU
 
 # bitsandbytes not needed - using full precision training
 import sys
@@ -17,7 +17,7 @@ from functools import partial
 from lora_misc import *
 from pynvml import *
 from sklearn.preprocessing import MinMaxScaler
-from transformers import AutoTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer, LlamaConfig
+from transformers import AutoTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer, AutoConfig
 from transformers.trainer_pt_utils import get_parameter_names
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, AutoPeftModelForSequenceClassification
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, Trainer, TrainingArguments, BitsAndBytesConfig,DataCollatorForLanguageModeling, Trainer, TrainingArguments
@@ -25,10 +25,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, Trainer,
 #  SETTINGS
 load_dotenv()  # Load environment variables from .env file
 np.random.seed(42) # sets a randomization seed for reproducibility
-model_name = os.getenv('MODEL_NAME', 'meta-llama/Llama-2-7b-hf')
+model_name = os.getenv('MODEL_NAME', 'meta-llama/Llama-2-7b-chat-hf')
 hftoken = os.getenv('HF_TOKEN')
-config = LlamaConfig(model_name, problem_type = "regression")
-# model_names = ['meta-llama/Llama-2-7b-hf', 'meta-llama/Llama-2-7b-chat-hf']
+config = AutoConfig.from_pretrained(model_name, token=hftoken)
+config.num_labels = 1
+config.problem_type = "regression"
 epochs = 10
 val_pct = 0.10 # proportion of total dataset allocated to validation
 test_pct = 0.20  # proportion of the dataset to devote to held-out test set
@@ -50,10 +51,11 @@ trainer_args = TrainingArguments(
   per_device_eval_batch_size=1,
   gradient_accumulation_steps=4,  # Effective batch size = 4
   warmup_steps = 1000,
-  fp16 = True,
+  bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
+  fp16 = not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()),
   num_train_epochs = epochs,
   load_best_model_at_end = True,
-  output_dir='./sctt_results_{}_{}'.format(expname,model_name.split('/')[1]),
+  output_dir='./results/training/sctt_results_{}_{}'.format(expname,model_name.split('/')[1]),
   logging_steps=10,  # Log more frequently
   dataloader_num_workers=0,  # Windows compatibility
 )
@@ -62,18 +64,33 @@ lora_alpha = 32
 lora_dropout = 0.1
 
 #  LOAD & PREPARE DATA
-d = pd.read_csv('all_sctt_jrt.csv')
-gen = pd.read_csv('sctt_item-generalization_jrt.csv')
+d = pd.read_csv('data/raw/all_sctt_jrt.csv')
+gen = pd.read_csv('data/raw/sctt_item-generalization_jrt.csv')
 
 #  INITIALIZE MODEL & TOKENIZER (PRE-TRAINED)
 model, tokenizer = load_model(model_name, config, hftoken)
 # Explicitly move model to GPU
 model = model.to(device)
+# Save VRAM during training
+model.gradient_checkpointing_enable()
+if getattr(model, "config", None) is not None:
+  model.config.use_cache = False
 max_length = int(get_max_length(model)/max_length_divisor)
 
 #  GENERATE PEFT CONFIG & PEFT MODEL
+# FIX: Remove 'score' from target_modules — it should ONLY be in modules_to_save
 modules = find_all_linear_names(model)
-peftconfig = create_peft_config(r, lora_alpha, lora_dropout, modules)
+modules = [m for m in modules if m != 'score']  # score must NOT be a LoRA target
+print(f"LoRA target modules: {modules}")
+
+peftconfig = LoraConfig(
+    r=r,
+    lora_alpha=lora_alpha,
+    lora_dropout=lora_dropout,
+    target_modules=modules,
+    modules_to_save=["score"],  # score gets full gradient updates, not LoRA
+    task_type="SEQ_CLS",
+)
 model = get_peft_model(model, peftconfig)
 print(model.print_trainable_parameters())
 
@@ -99,7 +116,7 @@ trainer = Trainer(
 
 # Check for existing checkpoints and resume if available
 import glob
-checkpoint_dirs = glob.glob('./sctt_results_{}_{}/checkpoint-*'.format(expname,model_name.split('/')[1]))
+checkpoint_dirs = glob.glob('./results/training/sctt_results_{}_{}/checkpoint-*'.format(expname,model_name.split('/')[1]))
 if checkpoint_dirs:
     latest_checkpoint = max(checkpoint_dirs, key=os.path.getctime)
     print(f"\n✓ Resuming training from checkpoint: {latest_checkpoint}\n")
@@ -108,23 +125,31 @@ else:
     print("\n✓ Starting training from scratch\n")
     trainer.train()
 
+# Create output directory
+os.makedirs('results/training', exist_ok=True)
+
 # VALIDATION
 val_prediction = trainer.predict(tokenized_datasets['validation'])
 val_output_df = pd.DataFrame({'preds': val_prediction.predictions.flatten(), 'ratings': val_prediction.label_ids})
-val_output_df.to_csv('validation_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1]), index = False)
-# print('\n\n\n\n\n\nVALIDATION MSE:', val_prediction.metrics['eval_mse'])
-# print('VALIDATION CORR:', val_prediction.metrics['eval_corr'])
+val_output_df.to_csv('results/training/validation_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1]), index = False)
 
 # TEST
 test_prediction = trainer.predict(tokenized_datasets['test'])
 test_output_df = pd.DataFrame({'preds': test_prediction.predictions.flatten(), 'ratings': test_prediction.label_ids})
-test_output_df.to_csv('test_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1], index = False))
-# print('\n\n\n\n\n\nTEST MSE:', test_prediction.metrics['test_mse'])
-# print('TEST CORR:', test_prediction.metrics['test_corr'])
+test_output_df.to_csv('results/training/test_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1]), index = False)
 
 #  HELDOUT TEST
 heldout_prediction = trainer.predict(tokenized_datasets['heldout'])
 heldoutprompt_output_df = pd.DataFrame({'preds': heldout_prediction.predictions.flatten(), 'ratings': heldout_prediction.label_ids})
-heldoutprompt_output_df.to_csv('heldoutprompt_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1], index = False))
-# print('\n\n\n\n\n\nHOLDOUT MSE:', heldout_prediction.metrics['heldout_prompt_mse'])
-# print('HOLDOUT CORR:', heldout_prediction.metrics['heldout_prompt_corr'])
+heldoutprompt_output_df.to_csv('results/training/heldoutprompt_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1]), index = False)
+
+# SAVE MODEL
+os.makedirs('models', exist_ok=True)
+save_path = './models/Llama-2-7b_sctt_regression'
+model.save_pretrained(save_path)
+tokenizer.save_pretrained(save_path)
+print(f'\nModel saved to: {save_path}')
+
+print('\n' + '='*80)
+print('TRAINING & EVALUATION COMPLETE')
+print('='*80)
