@@ -92,3 +92,11 @@ python cuda_troubleshoot.py
 - First run will download ~13GB model from HuggingFace
 - Checkpointing allows resuming interrupted training
 - Windows users: Ensure CUDA toolkit is installed for GPU support
+
+
+# Install GitHub CLI
+sudo apt update
+sudo apt install gh -y
+
+# Login via web browser
+gh auth login
