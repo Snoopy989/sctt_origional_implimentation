@@ -65,8 +65,8 @@ lora_alpha = 32
 lora_dropout = 0.1
 
 #  LOAD & PREPARE DATA
-d = pd.read_csv('all_sctt_jrt.csv')
-gen = pd.read_csv('sctt_item-generalization_jrt.csv')
+d = pd.read_csv('data/raw/all_sctt_jrt.csv')
+gen = pd.read_csv('data/raw/sctt_item-generalization_jrt.csv')
 
 #  INITIALIZE MODEL & TOKENIZER (PRE-TRAINED)
 model, tokenizer = load_model(model_name, config, hftoken)
@@ -80,7 +80,15 @@ max_length = int(get_max_length(model)/max_length_divisor)
 
 #  GENERATE PEFT CONFIG & PEFT MODEL
 modules = find_all_linear_names(model)
-peftconfig = create_peft_config(r, lora_alpha, lora_dropout, modules)
+modules = [m for m in modules if m != 'score']  # <-- ADD THIS LINE
+peftconfig = LoraConfig(
+    r=r,
+    lora_alpha=lora_alpha,
+    lora_dropout=lora_dropout,
+    target_modules=modules,
+    modules_to_save=["score"],
+    task_type="SEQ_CLS",
+)
 model = get_peft_model(model, peftconfig)
 print(model.print_trainable_parameters())
 
@@ -135,3 +143,11 @@ heldoutprompt_output_df = pd.DataFrame({'preds': heldout_prediction.predictions.
 heldoutprompt_output_df.to_csv('heldoutprompt_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1], index = False))
 # print('\n\n\n\n\n\nHOLDOUT MSE:', heldout_prediction.metrics['heldout_prompt_mse'])
 # print('HOLDOUT CORR:', heldout_prediction.metrics['heldout_prompt_corr'])
+
+
+# SAVE MODEL PROPERLY
+os.makedirs('models', exist_ok=True)
+save_path = './models/Llama-2-7b_sctt_regression'
+model.save_pretrained(save_path)
+tokenizer.save_pretrained(save_path)
+print(f'Model saved to: {save_path}')

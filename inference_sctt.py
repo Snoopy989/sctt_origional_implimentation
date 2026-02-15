@@ -37,32 +37,41 @@ device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("
 print('Using device:', device)
 scaler = MinMaxScaler()
 expname = "LORA_{}_epochs".format(epochs)
-output_dir = './sctt_results_{}_{}'.format(expname, model_name.split('/')[1])
-
-# Find the latest checkpoint
-import glob
-checkpoint_dirs = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-if checkpoint_dirs:
-    latest_checkpoint = max(checkpoint_dirs, key=os.path.getctime)
-    model_path = latest_checkpoint
-else:
-    raise ValueError("No checkpoints found in {}".format(output_dir))
+# Use trained model adapter
+model_path = './models/Llama-2-7b_sctt_regression'
+print(f'Loading model from: {model_path}')
 
 # LOAD DATA
-d = pd.read_csv('all_sctt_jrt.csv')
-gen = pd.read_csv('sctt_item-generalization_jrt.csv')
+d = pd.read_csv('data/raw/all_sctt_jrt.csv')
+gen = pd.read_csv('data/raw/sctt_item-generalization_jrt.csv')
 
 from transformers import LlamaForSequenceClassification
 from peft import PeftModel
 
+
 # LOAD MODEL & TOKENIZER
 base_model = LlamaForSequenceClassification.from_pretrained(model_name, config=config, token=hftoken, torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32)
 model = PeftModel.from_pretrained(base_model, model_path)
-tokenizer = AutoTokenizer.from_pretrained(model_path)
+tokenizer = AutoTokenizer.from_pretrained(model_name, token=hftoken)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 model.config.pad_token_id = tokenizer.pad_token_id
 model = model.to(device)
+model = model.merge_and_unload()  # <-- here, collapses LoRA + wrappers into base weights
+
+# ---- DIAGNOSTIC: check if score head loaded correctly ----
+# print("\n=== SCORE HEAD DIAGNOSTIC ===")
+# print(model.base_model.model.score)
+# print("---")
+# print("Score weights sample:", model.base_model.model.score.modules_to_save.default.weight.data.flatten()[:10])
+# # Also run the safetensors check:
+# from safetensors import safe_open
+# f = safe_open('./Llama-2-7b_sctt_regression/adapter_model.safetensors', framework='pt')
+# score_keys = [k for k in f.keys() if 'score' in k]
+# print("Score keys in saved adapter:", score_keys)
+# print("=== END DIAGNOSTIC ===\n")
+# -----------------------------------------------------------
+
 max_length = int(get_max_length(model)/max_length_divisor)
 
 # PREPROCESS DATA
@@ -79,20 +88,46 @@ tokenized_datasets = d.map(tokenize_function, batched = True) # applies wrapper 
 trainer = Trainer(
   model=model,
   compute_metrics=compute_metrics,
-  tokenizer=tokenizer,
 )
 
-# VALIDATION
-val_prediction = trainer.predict(tokenized_datasets['validation'])
-val_output_df = pd.DataFrame({'preds': val_prediction.predictions.flatten(), 'ratings': val_prediction.label_ids})
-val_output_df.to_csv('validation_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1]), index = False)
+# Create output directory
+os.makedirs('results/training', exist_ok=True)
 
-# TEST
-test_prediction = trainer.predict(tokenized_datasets['test'])
-test_output_df = pd.DataFrame({'preds': test_prediction.predictions.flatten(), 'ratings': test_prediction.label_ids})
-test_output_df.to_csv('test_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1]), index = False)
+print('\nRunning inference on training set...')
+train_prediction = trainer.predict(tokenized_datasets['train'])
+train_output_df = pd.DataFrame({'preds': train_prediction.predictions.flatten(), 'ratings': train_prediction.label_ids})
+train_output_path = 'results/training/train_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1])
+train_output_df.to_csv(train_output_path, index = False)
+print(f'Training metrics: {train_prediction.metrics}')
+print(f'Saved to: {train_output_path}')
 
-# HELDOUT
-heldout_prediction = trainer.predict(tokenized_datasets['heldout'])
-heldout_output_df = pd.DataFrame({'preds': heldout_prediction.predictions.flatten(), 'ratings': heldout_prediction.label_ids})
-heldout_output_df.to_csv('heldout_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1]), index = False)
+# print('\nRunning inference on validation set...')
+# val_prediction = trainer.predict(tokenized_datasets['validation'])
+# val_output_df = pd.DataFrame({'preds': val_prediction.predictions.flatten(), 'ratings': val_prediction.label_ids})
+# val_output_path = 'results/training/validation_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1])
+# val_output_df.to_csv(val_output_path, index = False)
+# print(f'Validation metrics: {val_prediction.metrics}')
+# print(f'Saved to: {val_output_path}')
+
+# print('\nRunning inference on test set...')
+# test_prediction = trainer.predict(tokenized_datasets['test'])
+# test_output_df = pd.DataFrame({'preds': test_prediction.predictions.flatten(), 'ratings': test_prediction.label_ids})
+# test_output_path = 'results/training/test_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1])
+# test_output_df.to_csv(test_output_path, index = False)
+# print(f'Test metrics: {test_prediction.metrics}')
+# print(f'Saved to: {test_output_path}')
+
+# print('\nRunning inference on heldout set...')
+# heldout_prediction = trainer.predict(tokenized_datasets['heldout'])
+# heldout_output_df = pd.DataFrame({'preds': heldout_prediction.predictions.flatten(), 'ratings': heldout_prediction.label_ids})
+# heldout_output_path = 'results/training/heldout_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1])
+# heldout_output_df.to_csv(heldout_output_path, index = False)
+# print(f'Heldout metrics: {heldout_prediction.metrics}')
+# print(f'Saved to: {heldout_output_path}')
+
+print('\n' + '='*80)
+print('INFERENCE COMPLETE')
+print('='*80)
+
+print(f"Preds - min: {train_prediction.predictions.min():.4f}, max: {train_prediction.predictions.max():.4f}, mean: {train_prediction.predictions.mean():.4f}, std: {train_prediction.predictions.std():.4f}")
+print(f"Labels - min: {train_prediction.label_ids.min():.4f}, max: {train_prediction.label_ids.max():.4f}, mean: {train_prediction.label_ids.mean():.4f}, std: {train_prediction.label_ids.std():.4f}")
