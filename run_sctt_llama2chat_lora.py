@@ -48,9 +48,9 @@ trainer_args = TrainingArguments(
   save_strategy="steps",
   save_steps = 1000,
   learning_rate = 5e-5,
-  per_device_train_batch_size=1,  # Reduced to avoid OOM
-  per_device_eval_batch_size=1,
-  gradient_accumulation_steps=4,  # Effective batch size = 4
+  per_device_train_batch_size=4,  # Smaller for better convergence
+  per_device_eval_batch_size=4,
+  gradient_accumulation_steps=4,  # Effective batch size = 16
   warmup_steps = 1000,
   bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
   fp16 = not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()),
@@ -70,6 +70,13 @@ gen = pd.read_csv('data/raw/sctt_item-generalization_jrt.csv')
 
 #  INITIALIZE MODEL & TOKENIZER (PRE-TRAINED)
 model, tokenizer = load_model(model_name, config, hftoken)
+
+# Add padding token (CRITICAL for batch training)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+
+model.config.pad_token_id = tokenizer.pad_token_id # Ensure model has pad_token_id set
 # Explicitly move model to GPU
 model = model.to(device)
 # Save VRAM during training
@@ -109,7 +116,7 @@ trainer = Trainer(
   train_dataset=tokenized_datasets["train"],
   eval_dataset=tokenized_datasets["validation"],
   compute_metrics=compute_metrics,
-  tokenizer=tokenizer,
+  processing_class=tokenizer
 )
 
 # Check for existing checkpoints and resume if available
@@ -133,14 +140,14 @@ val_output_df.to_csv('validation_output_sctt_results_{}_{}.csv'.format(expname,m
 # TEST
 test_prediction = trainer.predict(tokenized_datasets['test'])
 test_output_df = pd.DataFrame({'preds': test_prediction.predictions.flatten(), 'ratings': test_prediction.label_ids})
-test_output_df.to_csv('test_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1], index = False))
+test_output_df.to_csv('test_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1]), index = False)
 # print('\n\n\n\n\n\nTEST MSE:', test_prediction.metrics['test_mse'])
 # print('TEST CORR:', test_prediction.metrics['test_corr'])
 
 #  HELDOUT TEST
 heldout_prediction = trainer.predict(tokenized_datasets['heldout'])
 heldoutprompt_output_df = pd.DataFrame({'preds': heldout_prediction.predictions.flatten(), 'ratings': heldout_prediction.label_ids})
-heldoutprompt_output_df.to_csv('heldoutprompt_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1], index = False))
+heldoutprompt_output_df.to_csv('heldoutprompt_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1]), index = False)
 # print('\n\n\n\n\n\nHOLDOUT MSE:', heldout_prediction.metrics['heldout_prompt_mse'])
 # print('HOLDOUT CORR:', heldout_prediction.metrics['heldout_prompt_corr'])
 
