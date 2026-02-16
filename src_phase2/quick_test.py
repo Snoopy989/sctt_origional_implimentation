@@ -16,6 +16,8 @@ from torch.utils.data import Dataset
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
+    LlamaForSequenceClassification,
+    AutoConfig,
     set_seed
 )
 from peft import PeftModel
@@ -100,7 +102,8 @@ class SemanticEntropyCalculator:
         eps: float = 0.5,
         min_samples: int = 1,
         device: str = "cuda",
-        max_length: int = 2048
+        max_length: int = 2048,
+        generation_batch_size: int = 20
     ):
         self.model = model
         self.tokenizer = tokenizer
@@ -111,9 +114,10 @@ class SemanticEntropyCalculator:
         self.min_samples = min_samples
         self.device = device
         self.max_length = max_length
+        self.generation_batch_size = generation_batch_size  # Batch size for generation to avoid OOM
     
     def generate_sequences(self, prompt: str) -> List[Dict[str, any]]:
-        """Generate M sequences using multinomial sampling."""
+        """Generate M sequences using multinomial sampling with batching to avoid OOM."""
         inputs = self.tokenizer(
             prompt,
             return_tensors="pt",
@@ -123,48 +127,60 @@ class SemanticEntropyCalculator:
         
         sequences = []
         
+        # Generate in batches to avoid OOM for large num_generations
+        num_batches = (self.num_generations + self.generation_batch_size - 1) // self.generation_batch_size
+        
         with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                do_sample=True,
-                temperature=self.temperature,
-                top_p=0.95,
-                num_return_sequences=self.num_generations,
-                pad_token_id=self.tokenizer.pad_token_id,
-                output_scores=True,
-                return_dict_in_generate=True
-            )
-            
-            input_length = inputs.input_ids.shape[1]
-            
-            for i in range(self.num_generations):
-                generated_ids = outputs.sequences[i][input_length:]
-                generated_text = self.tokenizer.decode(
-                    generated_ids, 
-                    skip_special_tokens=True
-                ).strip()
+            for batch_idx in range(num_batches):
+                batch_start = batch_idx * self.generation_batch_size
+                batch_end = min(batch_start + self.generation_batch_size, self.num_generations)
+                batch_size = batch_end - batch_start
                 
-                scores = torch.stack(outputs.scores, dim=1)
-                probs = torch.softmax(scores[i], dim=-1)
-                
-                token_log_probs = torch.log(
-                    probs[torch.arange(len(generated_ids)), generated_ids]
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=self.max_new_tokens,
+                    do_sample=True,
+                    temperature=self.temperature,
+                    top_p=0.95,
+                    num_return_sequences=batch_size,
+                    pad_token_id=self.tokenizer.pad_token_id,
+                    output_scores=True,
+                    return_dict_in_generate=True
                 )
-                avg_log_prob = token_log_probs.mean().item()
                 
-                try:
-                    numerical_score = float(generated_text.strip())
-                except:
-                    numbers = re.findall(r'-?\d+\.?\d*', generated_text)
-                    numerical_score = float(numbers[0]) if numbers else 0.0
+                input_length = inputs.input_ids.shape[1]
                 
-                sequences.append({
-                    'text': generated_text,
-                    'score': numerical_score,
-                    'log_prob': avg_log_prob,
-                    'tokens': generated_ids.cpu().tolist()
-                })
+                for i in range(batch_size):
+                    generated_ids = outputs.sequences[i][input_length:]
+                    generated_text = self.tokenizer.decode(
+                        generated_ids, 
+                        skip_special_tokens=True
+                    ).strip()
+                    
+                    scores = torch.stack(outputs.scores, dim=1)
+                    probs = torch.softmax(scores[i], dim=-1)
+                    
+                    token_log_probs = torch.log(
+                        probs[torch.arange(len(generated_ids)), generated_ids]
+                    )
+                    avg_log_prob = token_log_probs.mean().item()
+                    
+                    try:
+                        numerical_score = float(generated_text.strip())
+                    except:
+                        numbers = re.findall(r'-?\d+\.?\d*', generated_text)
+                        numerical_score = float(numbers[0]) if numbers else 0.0
+                    
+                    sequences.append({
+                        'text': generated_text,
+                        'score': numerical_score,
+                        'log_prob': avg_log_prob,
+                        'tokens': generated_ids.cpu().tolist()
+                    })
+                
+                # Clear GPU cache between batches to avoid memory fragmentation
+                if self.device == "cuda" and batch_idx < num_batches - 1:
+                    torch.cuda.empty_cache()
         
         return sequences
     
@@ -270,25 +286,12 @@ class ModelPredictor:
             max_length=self.max_length
         ).to(self.device)
         
+        # FIXED: Direct regression prediction using logits, not text generation
         with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=10,
-                do_sample=False,
-                num_return_sequences=1
-            )
+            outputs = self.model(**inputs)
+            prediction = outputs.logits.squeeze().item()
         
-        generated_text = self.tokenizer.decode(
-            outputs[0][inputs.input_ids.shape[1]:],
-            skip_special_tokens=True
-        ).strip()
-        
-        try:
-            prediction = float(generated_text)
-        except:
-            numbers = re.findall(r'-?\d+\.?\d*', generated_text)
-            prediction = float(numbers[0]) if numbers else 0.0
-        
+        # Calculate semantic entropy for uncertainty estimation
         entropy_result = entropy_calculator.calculate_entropy(prompt=input_text)
         semantic_entropy = entropy_result['semantic_entropy']
         
@@ -365,12 +368,11 @@ class ModelLoader:
         return max_length if max_length else 1024
     
     @staticmethod
-    def load_model_and_tokenizer(
+    def load_generative_model(
         base_model_path: str,
-        lora_adapter_path: Optional[str] = None,
         device: str = "cuda"
     ) -> Tuple:
-        """Load model and tokenizer with GPU optimizations."""
+        """Load generative model for semantic entropy calculation."""
         tokenizer = AutoTokenizer.from_pretrained(base_model_path)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
@@ -385,10 +387,41 @@ class ModelLoader:
             low_cpu_mem_usage=True
         )
         
+        model.eval()
+        return model, tokenizer
+    
+    @staticmethod
+    def load_model_and_tokenizer(
+        base_model_path: str,
+        lora_adapter_path: Optional[str] = None,
+        device: str = "cuda"
+    ) -> Tuple:
+        """Load model and tokenizer with GPU optimizations."""
+        # Setup config for regression (CRITICAL for fine-tuned model)
+        config = AutoConfig.from_pretrained(base_model_path)
+        config.num_labels = 1
+        config.problem_type = "regression"
+        
+        tokenizer = AutoTokenizer.from_pretrained(base_model_path)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        
+        dtype = torch.float32 if device == "cpu" else torch.float16
+        
+        # FIXED: Use LlamaForSequenceClassification for regression, not CausalLM
+        model = LlamaForSequenceClassification.from_pretrained(
+            base_model_path,
+            config=config,
+            torch_dtype=dtype,
+            device_map={"": device} if device == "cpu" else "auto",
+            low_cpu_mem_usage=True
+        )
+        
         if lora_adapter_path:
             model = PeftModel.from_pretrained(model, lora_adapter_path)
             model = model.merge_and_unload()
         
+        model.config.pad_token_id = tokenizer.pad_token_id
         model.eval()
         return model, tokenizer
 
@@ -401,10 +434,12 @@ class ConvergenceAnalyzer:
         model,
         tokenizer,
         output_dir: str,
-        logger: logging.Logger
+        logger: logging.Logger,
+        generative_model=None
     ):
         self.model = model
         self.tokenizer = tokenizer
+        self.generative_model = generative_model if generative_model is not None else model
         self.output_dir = output_dir
         self.logger = logger
         self.max_length = int(ModelLoader.get_max_length(model) / 2)
@@ -432,8 +467,9 @@ class ConvergenceAnalyzer:
         for n in n_values:
             self.logger.info(f"Processing n={n}")
             
+            # Use generative model for entropy calculation
             entropy_calculator = SemanticEntropyCalculator(
-                model=self.model,
+                model=self.generative_model,
                 tokenizer=self.tokenizer,
                 num_generations=n,
                 temperature=0.5,
@@ -456,6 +492,8 @@ class ConvergenceAnalyzer:
                     result = predictor.predict(entropy_calculator, prompt, response, formatted_text)
                     
                     result_record = {
+                        'sample_id': row.get('ID', idx),
+                        'item': row.get('item', ''),
                         'prompt': prompt,
                         'response': response,
                         'label_true': label_true,
@@ -466,7 +504,8 @@ class ConvergenceAnalyzer:
                         'semantic_entropy': result['semantic_entropy'],
                         'num_clusters': result['num_clusters'],
                         'error': abs(label_true - result['prediction']),
-                        'needs_review': result['needs_review']
+                        'needs_review': result['needs_review'],
+                        'entropy_metadata': result['entropy_metadata']  # Save full metadata
                     }
                     
                     results.append(result_record)
@@ -492,11 +531,16 @@ class ConvergenceAnalyzer:
                 'metrics': metrics,
                 'results_df': results_df,
                 'review_stats': review_stats,
-                'flagged_samples': flagged_for_review
+                'flagged_samples': flagged_for_review,
+                'raw_results': results  # Keep raw results with metadata
             }
             
             self._save_results(n, results_df, flagged_for_review)
+            self._save_comprehensive_results(n, results)  # Save all sequence-level data
             self._log_metrics(n, metrics, review_stats)
+        
+        # Save combined dataset across all n values
+        self._save_combined_comprehensive_results(all_results)
         
         self.logger.info("Convergence analysis completed")
         return all_results
@@ -505,15 +549,172 @@ class ConvergenceAnalyzer:
         """Save results to CSV files."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        detailed_path = os.path.join(self.output_dir, f'detailed_results_n{n}_{timestamp}.csv')
-        results_df.to_csv(detailed_path, index=False)
-        self.logger.debug(f"Saved detailed results to: {detailed_path}")
+        # Save summary results (without metadata)
+        summary_df = results_df.drop(columns=['entropy_metadata'], errors='ignore')
+        detailed_path = os.path.join(self.output_dir, f'summary_results_n{n}_{timestamp}.csv')
+        summary_df.to_csv(detailed_path, index=False)
+        self.logger.debug(f"Saved summary results to: {detailed_path}")
         
         if flagged_for_review:
             flagged_df = pd.DataFrame(flagged_for_review)
+            flagged_df = flagged_df.drop(columns=['entropy_metadata'], errors='ignore')
             flagged_path = os.path.join(self.output_dir, f'flagged_for_review_n{n}_{timestamp}.csv')
             flagged_df.to_csv(flagged_path, index=False)
             self.logger.debug(f"Saved flagged samples to: {flagged_path}")
+    
+    def _save_comprehensive_results(self, n: int, results: List[Dict]):
+        """Save comprehensive results in long format for advanced analysis."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Long format: one row per generated sequence
+        sequence_data = []
+        
+        for result in results:
+            sample_id = result['sample_id']
+            item = result.get('item', '')
+            prompt = result['prompt']
+            response = result['response']
+            label_true = result['label_true']
+            label_pred = result['label_pred']
+            semantic_entropy = result['semantic_entropy']
+            num_clusters = result['num_clusters']
+            error = result['error']
+            needs_review = result['needs_review']
+            
+            metadata = result.get('entropy_metadata', {})
+            sequences = metadata.get('sequences', [])
+            clusters = metadata.get('clusters', [])
+            
+            # Determine cluster membership for each sequence
+            sequence_to_cluster = {}
+            for cluster_id, cluster_indices in enumerate(clusters):
+                for seq_idx in cluster_indices:
+                    sequence_to_cluster[seq_idx] = cluster_id
+            
+            # Add greedy prediction as sequence index -1
+            sequence_data.append({
+                'sample_id': sample_id,
+                'item': item,
+                'prompt': prompt,
+                'response': response,
+                'label_true': label_true,
+                'n_generations': n,
+                'sequence_idx': -1,
+                'sequence_text': response,  # Original response
+                'sequence_score': label_pred,  # Greedy prediction
+                'sequence_log_prob': None,
+                'cluster_id': None,
+                'is_greedy': True,
+                'semantic_entropy': semantic_entropy,
+                'num_clusters': num_clusters,
+                'error': error,
+                'needs_review': needs_review
+            })
+            
+            # Add all sampled sequences
+            for seq_idx, seq in enumerate(sequences):
+                sequence_data.append({
+                    'sample_id': sample_id,
+                    'item': item,
+                    'prompt': prompt,
+                    'response': response,
+                    'label_true': label_true,
+                    'n_generations': n,
+                    'sequence_idx': seq_idx,
+                    'sequence_text': seq.get('text', ''),
+                    'sequence_score': seq.get('score', None),
+                    'sequence_log_prob': seq.get('log_prob', None),
+                    'cluster_id': sequence_to_cluster.get(seq_idx, -1),
+                    'is_greedy': False,
+                    'semantic_entropy': semantic_entropy,
+                    'num_clusters': num_clusters,
+                    'error': error,
+                    'needs_review': needs_review
+                })
+        
+        # Save as both CSV and Parquet for flexibility
+        df_sequences = pd.DataFrame(sequence_data)
+        
+        csv_path = os.path.join(self.output_dir, f'sequences_n{n}_{timestamp}.csv')
+        df_sequences.to_csv(csv_path, index=False)
+        self.logger.info(f"Saved sequence-level data to: {csv_path}")
+        
+        try:
+            parquet_path = os.path.join(self.output_dir, f'sequences_n{n}_{timestamp}.parquet')
+            df_sequences.to_parquet(parquet_path, index=False)
+            self.logger.info(f"Saved sequence-level data to: {parquet_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not save parquet (install pyarrow): {e}")
+    
+    def _save_combined_comprehensive_results(self, all_results: Dict):
+        """Save combined dataset across all n values for comparative analysis."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        combined_data = []
+        
+        for n, results_dict in all_results.items():
+            raw_results = results_dict.get('raw_results', [])
+            
+            for result in raw_results:
+                sample_id = result['sample_id']
+                item = result.get('item', '')
+                prompt = result['prompt']
+                response = result['response']
+                label_true = result['label_true']
+                label_pred = result['label_pred']
+                semantic_entropy = result['semantic_entropy']
+                num_clusters = result['num_clusters']
+                error = result['error']
+                needs_review = result['needs_review']
+                ci_lower = result['ci_lower']
+                ci_upper = result['ci_upper']
+                ci_width = result['ci_width']
+                
+                metadata = result.get('entropy_metadata', {})
+                sequences = metadata.get('sequences', [])
+                clusters = metadata.get('clusters', [])
+                
+                # Aggregate statistics over sequences
+                if sequences:
+                    sequence_scores = [seq.get('score', 0) for seq in sequences]
+                    sequence_log_probs = [seq.get('log_prob', 0) for seq in sequences if seq.get('log_prob') is not None]
+                    
+                    combined_data.append({
+                        'sample_id': sample_id,
+                        'item': item,
+                        'prompt': prompt,
+                        'response': response,
+                        'label_true': label_true,
+                        'label_pred': label_pred,
+                        'n_generations': n,
+                        'semantic_entropy': semantic_entropy,
+                        'num_clusters': num_clusters,
+                        'ci_lower': ci_lower,
+                        'ci_upper': ci_upper,
+                        'ci_width': ci_width,
+                        'error': error,
+                        'needs_review': needs_review,
+                        'num_sequences': len(sequences),
+                        'mean_sampled_score': np.mean(sequence_scores) if sequence_scores else None,
+                        'std_sampled_score': np.std(sequence_scores) if sequence_scores else None,
+                        'min_sampled_score': np.min(sequence_scores) if sequence_scores else None,
+                        'max_sampled_score': np.max(sequence_scores) if sequence_scores else None,
+                        'mean_log_prob': np.mean(sequence_log_probs) if sequence_log_probs else None,
+                        'std_log_prob': np.std(sequence_log_probs) if sequence_log_probs else None
+                    })
+        
+        df_combined = pd.DataFrame(combined_data)
+        
+        csv_path = os.path.join(self.output_dir, f'combined_analysis_{timestamp}.csv')
+        df_combined.to_csv(csv_path, index=False)
+        self.logger.info(f"Saved combined analysis dataset to: {csv_path}")
+        
+        try:
+            parquet_path = os.path.join(self.output_dir, f'combined_analysis_{timestamp}.parquet')
+            df_combined.to_parquet(parquet_path, index=False)
+            self.logger.info(f"Saved combined analysis dataset to: {parquet_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not save parquet (install pyarrow): {e}")
     
     def _log_metrics(self, n: int, metrics: Dict, review_stats: Dict):
         """Log computed metrics."""
@@ -838,9 +1039,15 @@ def main():
         args.device
     )
     
+    logger.info("Loading generative model for semantic entropy calculation")
+    generative_model, _ = ModelLoader.load_generative_model(
+        args.base_model,
+        args.device
+    )
+    
     df = DataProcessor.load_and_prepare_data(args.test_data, args.num_samples, logger)
     
-    analyzer = ConvergenceAnalyzer(model, tokenizer, args.output_dir, logger)
+    analyzer = ConvergenceAnalyzer(model, tokenizer, args.output_dir, logger, generative_model)
     all_results = analyzer.run_analysis(df, args.n_values, args.device)
     
     visualizer = ResultsVisualizer(args.output_dir, logger)

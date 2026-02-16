@@ -1,0 +1,22 @@
+{
+  "analysis_date": "2026-02-16T02:12:45.141980",
+  "num_samples": 500,
+  "n_values_tested": [
+    200
+  ],
+  "metrics_by_n": {
+    "200": {
+      "auroc": 0.4808319999999999,
+      "pearson": 0.0038467459419346,
+      "spearman": -0.03300777462141139,
+      "mean_entropy": 0.0495455446663826,
+      "std_entropy": 0.10801653084754843
+    }
+  },
+  "improvement": {
+    "auroc": 0.0,
+    "pearson": 0.0
+  },
+  "recommended_n": 100,
+  "interpretation": "Metrics stable across n values. Original n=10 is sufficient."
+}

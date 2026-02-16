@@ -1,0 +1,6 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting pyarrow
+  Downloading pyarrow-23.0.0-cp310-cp310-manylinux_2_28_x86_64.whl (47.5 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 47.5/47.5 MB 40.3 MB/s eta 0:00:00
+Installing collected packages: pyarrow
+Successfully installed pyarrow-23.0.0
