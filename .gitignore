@@ -36,3 +36,6 @@ checkpoint-*/
 # Hugging Face cache
 .cache/
 transformers_cache/
+
+# Local model directory
+models/Llama-2-7b_sctt_regression/
