@@ -5,10 +5,12 @@ import evaluate
 import numpy as np
 import pandas as pd
 import sys
+# Add workspace root to Python path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import torch
 torch.cuda.empty_cache()
 from datasets import Dataset, DatasetDict
-from dataprocessing import preprocess_llm_data
+from src_phase1.helpers.dataprocessing import preprocess_llm_data
 from functools import partial
 from lora_misc_llama2_13b import *
 

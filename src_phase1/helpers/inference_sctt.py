@@ -3,6 +3,9 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # set GPU
 
 # bitsandbytes not needed - using full precision
 import sys
+from pathlib import Path
+# Add workspace root to Python path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from dotenv import load_dotenv
 import evaluate
@@ -10,19 +13,35 @@ import numpy as np
 import pandas as pd
 import torch
 from datasets import Dataset, DatasetDict
-from dataprocessing import preprocess_llm_data
-from lora_misc import load_model, get_max_length, compute_metrics
+from src_phase1.helpers.dataprocessing import preprocess_llm_data
+from src_phase1.helpers.lora_misc import load_model, get_max_length, compute_metrics
 from sklearn.preprocessing import MinMaxScaler
-from transformers import AutoTokenizer, AutoConfig
-from peft import AutoPeftModelForSequenceClassification
+from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification
+from peft import PeftModel, PeftConfig
 from transformers import Trainer
 
 # SETTINGS
-load_dotenv()  # Load environment variables from .env file
+project_root = Path(__file__).resolve().parents[2]
+load_dotenv(project_root / '.env')  # Load environment variables from .env file
 np.random.seed(42) # sets a randomization seed for reproducibility
 model_name = os.getenv('MODEL_NAME', 'meta-llama/Llama-2-7b-chat-hf')
+base_model_path = Path(os.getenv('BASE_MODEL_PATH', './downloaded_models/meta-llama--Llama-2-7b-chat-hf'))
+adapter_path = Path(os.getenv('ADAPTER_PATH', './Llama-2-7b_sctt_regression_oldgood'))
+
+if not base_model_path.is_absolute():
+    base_model_path = (project_root / base_model_path).resolve()
+if not adapter_path.is_absolute():
+    adapter_path = (project_root / adapter_path).resolve()
+
 hftoken = os.getenv('HF_TOKEN')
-config = AutoConfig.from_pretrained(model_name, token=hftoken)
+
+# Load config from local model if available, otherwise from HF
+if os.path.exists(base_model_path):
+    config = AutoConfig.from_pretrained(str(base_model_path))
+    print(f'Using local base model config: {base_model_path}')
+else:
+    config = AutoConfig.from_pretrained(model_name, token=hftoken)
+    print(f'Using HuggingFace model config: {model_name}')
 config.num_labels = 1
 config.problem_type = "regression"
 epochs = 10
@@ -37,40 +56,46 @@ device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("
 print('Using device:', device)
 scaler = MinMaxScaler()
 expname = "LORA_{}_epochs".format(epochs)
-# Use trained model adapter
-model_path = './models/Llama-2-7b_sctt_regression'
-print(f'Loading model from: {model_path}')
+print(f'Adapter path: {adapter_path}')
+print(f'Base model path: {base_model_path}')
+
+if not adapter_path.exists():
+    raise FileNotFoundError(f'Adapter path not found: {adapter_path}')
 
 # LOAD DATA
-d = pd.read_csv('data/raw/all_sctt_jrt.csv')
-gen = pd.read_csv('data/raw/sctt_item-generalization_jrt.csv')
-
-from transformers import LlamaForSequenceClassification
-from peft import PeftModel
-
+d = pd.read_csv(project_root / 'data/raw/all_sctt_jrt.csv')
+gen = pd.read_csv(project_root / 'data/raw/sctt_item-generalization_jrt.csv')
 
 # LOAD MODEL & TOKENIZER
-base_model = LlamaForSequenceClassification.from_pretrained(model_name, config=config, token=hftoken, torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32)
-model = PeftModel.from_pretrained(base_model, model_path)
-tokenizer = AutoTokenizer.from_pretrained(model_name, token=hftoken)
+print("Loading base model + PEFT adapter for regression...")
+
+# Load base model from local path if available, otherwise from HF
+if os.path.exists(base_model_path):
+    print(f"Loading base model from local path: {base_model_path}")
+    base_model = AutoModelForSequenceClassification.from_pretrained(
+        str(base_model_path),
+        config=config,
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(str(base_model_path))
+else:
+    print(f"Loading base model from HuggingFace: {model_name}")
+    base_model = AutoModelForSequenceClassification.from_pretrained(
+        model_name,
+        config=config,
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+        token=hftoken,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(model_name, token=hftoken)
+
+# Load PEFT adapter
+print(f"Loading adapter from: {adapter_path}")
+model = PeftModel.from_pretrained(base_model, str(adapter_path))
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 model.config.pad_token_id = tokenizer.pad_token_id
 model = model.to(device)
-model = model.merge_and_unload()  # <-- here, collapses LoRA + wrappers into base weights
-
-# ---- DIAGNOSTIC: check if score head loaded correctly ----
-# print("\n=== SCORE HEAD DIAGNOSTIC ===")
-# print(model.base_model.model.score)
-# print("---")
-# print("Score weights sample:", model.base_model.model.score.modules_to_save.default.weight.data.flatten()[:10])
-# # Also run the safetensors check:
-# from safetensors import safe_open
-# f = safe_open('./Llama-2-7b_sctt_regression/adapter_model.safetensors', framework='pt')
-# score_keys = [k for k in f.keys() if 'score' in k]
-# print("Score keys in saved adapter:", score_keys)
-# print("=== END DIAGNOSTIC ===\n")
-# -----------------------------------------------------------
+print(f"Model loaded successfully. Device: {device}")
 
 max_length = int(get_max_length(model)/max_length_divisor)
 
@@ -91,12 +116,13 @@ trainer = Trainer(
 )
 
 # Create output directory
-os.makedirs('results/training', exist_ok=True)
+results_dir = project_root / 'results/training'
+results_dir.mkdir(parents=True, exist_ok=True)
 
 print('\nRunning inference on training set...')
 train_prediction = trainer.predict(tokenized_datasets['train'])
 train_output_df = pd.DataFrame({'preds': train_prediction.predictions.flatten(), 'ratings': train_prediction.label_ids})
-train_output_path = 'results/training/train_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1])
+train_output_path = str(results_dir / 'train_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1]))
 train_output_df.to_csv(train_output_path, index = False)
 print(f'Training metrics: {train_prediction.metrics}')
 print(f'Saved to: {train_output_path}')
@@ -104,7 +130,7 @@ print(f'Saved to: {train_output_path}')
 print('\nRunning inference on validation set...')
 val_prediction = trainer.predict(tokenized_datasets['validation'])
 val_output_df = pd.DataFrame({'preds': val_prediction.predictions.flatten(), 'ratings': val_prediction.label_ids})
-val_output_path = 'results/training/validation_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1])
+val_output_path = str(results_dir / 'validation_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1]))
 val_output_df.to_csv(val_output_path, index = False)
 print(f'Validation metrics: {val_prediction.metrics}')
 print(f'Saved to: {val_output_path}')
@@ -112,7 +138,7 @@ print(f'Saved to: {val_output_path}')
 print('\nRunning inference on test set...')
 test_prediction = trainer.predict(tokenized_datasets['test'])
 test_output_df = pd.DataFrame({'preds': test_prediction.predictions.flatten(), 'ratings': test_prediction.label_ids})
-test_output_path = 'results/training/test_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1])
+test_output_path = str(results_dir / 'test_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1]))
 test_output_df.to_csv(test_output_path, index = False)
 print(f'Test metrics: {test_prediction.metrics}')
 print(f'Saved to: {test_output_path}')
@@ -120,7 +146,7 @@ print(f'Saved to: {test_output_path}')
 print('\nRunning inference on heldout set...')
 heldout_prediction = trainer.predict(tokenized_datasets['heldout'])
 heldout_output_df = pd.DataFrame({'preds': heldout_prediction.predictions.flatten(), 'ratings': heldout_prediction.label_ids})
-heldout_output_path = 'results/training/heldout_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1])
+heldout_output_path = str(results_dir / 'heldout_output_inference_{}_{}.csv'.format(expname, model_name.split('/')[1]))
 heldout_output_df.to_csv(heldout_output_path, index = False)
 print(f'Heldout metrics: {heldout_prediction.metrics}')
 print(f'Saved to: {heldout_output_path}')

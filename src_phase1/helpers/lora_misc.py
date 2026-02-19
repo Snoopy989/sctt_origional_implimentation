@@ -7,9 +7,9 @@ import pandas as pd
 import sys
 import torch
 from datasets import Dataset, DatasetDict
-from dataprocessing import preprocess_llm_data
+from src_phase1.helpers.dataprocessing import preprocess_llm_data
 from functools import partial
-from misc import *
+from src_phase1.helpers.misc import *
 from pynvml import *
 from sklearn.preprocessing import MinMaxScaler
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer

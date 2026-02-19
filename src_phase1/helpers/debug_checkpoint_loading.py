@@ -1,5 +1,9 @@
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+import sys
+# Add workspace root to Python path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 import torch
 torch.cuda.empty_cache()
 import pandas as pd
@@ -8,7 +12,7 @@ from scipy.stats import pearsonr
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
 from peft import AutoPeftModelForSequenceClassification
 from datasets import Dataset
-from dataprocessing import preprocess_llm_data
+from src_phase1.helpers.dataprocessing import preprocess_llm_data
 from lora_misc_llama2_13b import compute_metrics
 
 # Settings

@@ -12,10 +12,13 @@ def calculate_metrics(preds, true):
     return mae, mse, rmse, r2, corr
 
 def main():
-    splits = ['test', 'validation']
+    splits = ['train', 'test', 'validation','heldout']
 
     for split in splits:
-        file_path = f'{split}_output_sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf.csv'
+        file_path = f'results/training/{split}_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv'
+
+# heldout_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv
+# heldout_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv
         try:
             df = pd.read_csv(file_path)
             preds = df['preds'].values

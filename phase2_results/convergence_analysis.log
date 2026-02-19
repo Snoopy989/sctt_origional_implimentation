@@ -1,189 +1,104 @@
-2026-02-15 21:53:51 - __main__ - INFO - Starting convergence analysis
-2026-02-15 21:53:51 - __main__ - INFO - Base model: meta-llama/Llama-2-7b-chat-hf
-2026-02-15 21:53:51 - __main__ - INFO - LoRA adapter: PhillipGre/Llama-2-7b_sctt_regression
-2026-02-15 21:53:51 - __main__ - INFO - Test data: /home/ubuntu/sctt_origional_implimentation/src_phase2/../data/test_items_sctt.csv
-2026-02-15 21:53:51 - __main__ - INFO - Output directory: /home/ubuntu/sctt_origional_implimentation/phase2_results
-2026-02-15 21:53:51 - __main__ - INFO - Number of samples: 500
-2026-02-15 21:53:51 - __main__ - INFO - n values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200]
-2026-02-15 21:53:51 - __main__ - INFO - Loading model and tokenizer
-2026-02-15 21:53:57 - __main__ - INFO - Loading data from: /home/ubuntu/sctt_origional_implimentation/src_phase2/../data/test_items_sctt.csv
-2026-02-15 21:53:57 - __main__ - INFO - Loaded 3420 samples
-2026-02-15 21:53:57 - __main__ - INFO - Stratified sampling: 500 samples
-2026-02-15 21:53:57 - __main__ - INFO - Label range: [0.15, 0.93]
-2026-02-15 21:53:57 - __main__ - INFO - Label mean: 0.48 (+/- 0.15)
-2026-02-15 21:53:57 - __main__ - INFO - Starting convergence analysis with n_values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200]
-2026-02-15 21:53:57 - __main__ - INFO - Dataset size: 500 samples
-2026-02-15 21:53:57 - __main__ - INFO - Processing n=10
-2026-02-15 21:59:03 - __main__ - INFO - n=10: AUROC=0.5159, Pearson r=0.0938, Spearman r=0.0826
-2026-02-15 21:59:03 - __main__ - INFO - Processing n=20
-2026-02-15 22:04:06 - __main__ - INFO - n=20: AUROC=0.5550, Pearson r=0.1137, Spearman r=0.1359
-2026-02-15 22:04:06 - __main__ - INFO - Processing n=30
-2026-02-15 22:09:24 - __main__ - INFO - n=30: AUROC=0.5681, Pearson r=0.0801, Spearman r=0.1522
-2026-02-15 22:09:24 - __main__ - INFO - Processing n=40
-2026-02-15 22:14:56 - __main__ - INFO - n=40: AUROC=0.5436, Pearson r=0.1526, Spearman r=0.1357
-2026-02-15 22:14:56 - __main__ - INFO - Processing n=50
-2026-02-15 22:20:44 - __main__ - INFO - n=50: AUROC=0.5578, Pearson r=0.1145, Spearman r=0.1510
-2026-02-15 22:20:44 - __main__ - INFO - Processing n=60
-2026-02-15 22:26:45 - __main__ - INFO - n=60: AUROC=0.5902, Pearson r=0.1658, Spearman r=0.1927
-2026-02-15 22:26:45 - __main__ - INFO - Processing n=70
-2026-02-15 22:33:03 - __main__ - INFO - n=70: AUROC=0.6213, Pearson r=0.2514, Spearman r=0.2549
-2026-02-15 22:33:03 - __main__ - INFO - Processing n=80
-2026-02-15 22:39:36 - __main__ - INFO - n=80: AUROC=0.5838, Pearson r=0.1586, Spearman r=0.1827
-2026-02-15 22:39:36 - __main__ - INFO - Processing n=90
-2026-02-15 22:46:30 - __main__ - INFO - n=90: AUROC=0.6198, Pearson r=0.1535, Spearman r=0.2493
-2026-02-15 22:46:30 - __main__ - INFO - Processing n=100
-2026-02-15 22:53:34 - __main__ - INFO - n=100: AUROC=0.6164, Pearson r=0.1918, Spearman r=0.2460
-2026-02-15 22:53:34 - __main__ - INFO - Processing n=150
-2026-02-15 23:02:23 - __main__ - INFO - n=150: AUROC=0.6169, Pearson r=0.2221, Spearman r=0.2611
-2026-02-15 23:02:23 - __main__ - INFO - Processing n=200
-2026-02-15 23:13:06 - __main__ - INFO - n=200: AUROC=0.6218, Pearson r=0.1499, Spearman r=0.2548
-2026-02-15 23:13:06 - __main__ - INFO - Convergence analysis completed
-2026-02-15 23:13:06 - __main__ - INFO - Generating convergence plots
-2026-02-15 23:13:08 - __main__ - INFO - Convergence plot saved: /home/ubuntu/sctt_origional_implimentation/phase2_results/convergence_analysis_20260215_231306.png
-2026-02-15 23:13:08 - __main__ - INFO - Convergence summary saved: /home/ubuntu/sctt_origional_implimentation/phase2_results/convergence_summary_20260215_231306.csv
-2026-02-15 23:13:08 - __main__ - INFO - Generating analysis report
-2026-02-15 23:13:08 - __main__ - INFO - Analysis report saved: /home/ubuntu/sctt_origional_implimentation/phase2_results/analysis_report_20260215_231308.json
-2026-02-15 23:13:08 - __main__ - INFO - ================================================================================
-2026-02-15 23:13:08 - __main__ - INFO - CONVERGENCE ANALYSIS REPORT
-2026-02-15 23:13:08 - __main__ - INFO - ================================================================================
-2026-02-15 23:13:08 - __main__ - INFO - Samples analyzed: 500
-2026-02-15 23:13:08 - __main__ - INFO - n values tested: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200]
-2026-02-15 23:13:08 - __main__ - INFO - Recommended n: 100
-2026-02-15 23:13:08 - __main__ - INFO - AUROC improvement: +0.1060
-2026-02-15 23:13:08 - __main__ - INFO - Pearson improvement: +0.0561
-2026-02-15 23:13:08 - __main__ - INFO - Interpretation: Metrics improve with more generations. Extend n to 50-150 for better calibration.
-2026-02-15 23:13:08 - __main__ - INFO - ================================================================================
-2026-02-15 23:13:08 - __main__ - INFO - Convergence analysis complete
-2026-02-15 23:37:47 - __main__ - INFO - Starting convergence analysis
-2026-02-15 23:37:47 - __main__ - INFO - Base model: meta-llama/Llama-2-7b-chat-hf
-2026-02-15 23:37:47 - __main__ - INFO - LoRA adapter: PhillipGre/Llama-2-7b_sctt_regression
-2026-02-15 23:37:47 - __main__ - INFO - Test data: /home/ubuntu/sctt_origional_implimentation/src_phase2/../data/test_items_sctt.csv
-2026-02-15 23:37:47 - __main__ - INFO - Output directory: /home/ubuntu/sctt_origional_implimentation/phase2_results
-2026-02-15 23:37:47 - __main__ - INFO - Number of samples: 500
-2026-02-15 23:37:47 - __main__ - INFO - n values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200]
-2026-02-15 23:37:47 - __main__ - INFO - Loading model and tokenizer
-2026-02-15 23:40:23 - __main__ - INFO - Starting convergence analysis
-2026-02-15 23:40:23 - __main__ - INFO - Base model: meta-llama/Llama-2-7b-chat-hf
-2026-02-15 23:40:23 - __main__ - INFO - LoRA adapter: PhillipGre/Llama-2-7b_sctt_regression
-2026-02-15 23:40:23 - __main__ - INFO - Test data: /home/ubuntu/sctt_origional_implimentation/src_phase2/../data/test_items_sctt.csv
-2026-02-15 23:40:23 - __main__ - INFO - Output directory: /home/ubuntu/sctt_origional_implimentation/phase2_results
-2026-02-15 23:40:23 - __main__ - INFO - Number of samples: 500
-2026-02-15 23:40:23 - __main__ - INFO - n values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200]
-2026-02-15 23:40:23 - __main__ - INFO - Loading model and tokenizer
-2026-02-15 23:40:28 - __main__ - INFO - Loading generative model for semantic entropy calculation
-2026-02-15 23:40:32 - __main__ - INFO - Loading data from: /home/ubuntu/sctt_origional_implimentation/src_phase2/../data/test_items_sctt.csv
-2026-02-15 23:40:32 - __main__ - INFO - Loaded 3420 samples
-2026-02-15 23:40:32 - __main__ - INFO - Stratified sampling: 500 samples
-2026-02-15 23:40:32 - __main__ - INFO - Label range: [0.15, 0.93]
-2026-02-15 23:40:32 - __main__ - INFO - Label mean: 0.48 (+/- 0.15)
-2026-02-15 23:40:32 - __main__ - INFO - Starting convergence analysis with n_values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200]
-2026-02-15 23:40:32 - __main__ - INFO - Dataset size: 500 samples
-2026-02-15 23:40:32 - __main__ - INFO - Processing n=10
-2026-02-15 23:43:19 - __main__ - INFO - n=10: AUROC=0.5016, Pearson r=0.0208, Spearman r=0.0124
-2026-02-15 23:43:19 - __main__ - INFO - Processing n=20
-2026-02-15 23:46:11 - __main__ - INFO - n=20: AUROC=0.4845, Pearson r=-0.0353, Spearman r=-0.0408
-2026-02-15 23:46:11 - __main__ - INFO - Processing n=30
-2026-02-15 23:49:18 - __main__ - INFO - n=30: AUROC=0.4796, Pearson r=0.0172, Spearman r=-0.0282
-2026-02-15 23:49:18 - __main__ - INFO - Processing n=40
-2026-02-15 23:52:36 - __main__ - INFO - n=40: AUROC=0.4719, Pearson r=-0.0024, Spearman r=-0.0676
-2026-02-15 23:52:36 - __main__ - INFO - Processing n=50
-2026-02-16 00:01:23 - __main__ - INFO - Starting convergence analysis
-2026-02-16 00:01:23 - __main__ - INFO - Base model: meta-llama/Llama-2-7b-chat-hf
-2026-02-16 00:01:23 - __main__ - INFO - LoRA adapter: PhillipGre/Llama-2-7b_sctt_regression
-2026-02-16 00:01:23 - __main__ - INFO - Test data: /home/ubuntu/sctt_origional_implimentation/src_phase2/../data/test_items_sctt.csv
-2026-02-16 00:01:23 - __main__ - INFO - Output directory: /home/ubuntu/sctt_origional_implimentation/phase2_results
-2026-02-16 00:01:23 - __main__ - INFO - Number of samples: 500
-2026-02-16 00:01:23 - __main__ - INFO - n values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200]
-2026-02-16 00:01:23 - __main__ - INFO - Loading model and tokenizer
-2026-02-16 00:01:29 - __main__ - INFO - Loading generative model for semantic entropy calculation
-2026-02-16 00:01:32 - __main__ - INFO - Loading data from: /home/ubuntu/sctt_origional_implimentation/src_phase2/../data/test_items_sctt.csv
-2026-02-16 00:01:32 - __main__ - INFO - Loaded 3420 samples
-2026-02-16 00:01:32 - __main__ - INFO - Stratified sampling: 500 samples
-2026-02-16 00:01:32 - __main__ - INFO - Label range: [0.15, 0.93]
-2026-02-16 00:01:32 - __main__ - INFO - Label mean: 0.48 (+/- 0.15)
-2026-02-16 00:01:32 - __main__ - INFO - Starting convergence analysis with n_values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200]
-2026-02-16 00:01:32 - __main__ - INFO - Dataset size: 500 samples
-2026-02-16 00:01:32 - __main__ - INFO - Processing n=10
-2026-02-16 00:04:21 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n10_20260216_000421.csv
-2026-02-16 00:04:21 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n10_20260216_000421.parquet
-2026-02-16 00:04:21 - __main__ - INFO - n=10: AUROC=0.5016, Pearson r=0.0208, Spearman r=0.0124
-2026-02-16 00:04:21 - __main__ - INFO - Processing n=20
-2026-02-16 00:07:14 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n20_20260216_000713.csv
-2026-02-16 00:07:14 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n20_20260216_000713.parquet
-2026-02-16 00:07:14 - __main__ - INFO - n=20: AUROC=0.4845, Pearson r=-0.0353, Spearman r=-0.0408
-2026-02-16 00:07:14 - __main__ - INFO - Processing n=30
-2026-02-16 00:10:21 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n30_20260216_001021.csv
-2026-02-16 00:10:21 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n30_20260216_001021.parquet
-2026-02-16 00:10:21 - __main__ - INFO - n=30: AUROC=0.4796, Pearson r=0.0172, Spearman r=-0.0282
-2026-02-16 00:10:21 - __main__ - INFO - Processing n=40
-2026-02-16 00:13:40 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n40_20260216_001340.csv
-2026-02-16 00:13:40 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n40_20260216_001340.parquet
-2026-02-16 00:13:40 - __main__ - INFO - n=40: AUROC=0.4719, Pearson r=-0.0024, Spearman r=-0.0676
-2026-02-16 00:13:40 - __main__ - INFO - Processing n=50
-2026-02-16 00:17:14 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n50_20260216_001714.csv
-2026-02-16 00:17:14 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n50_20260216_001714.parquet
-2026-02-16 00:17:14 - __main__ - INFO - n=50: AUROC=0.4784, Pearson r=-0.0289, Spearman r=-0.0650
-2026-02-16 00:17:14 - __main__ - INFO - Processing n=60
-2026-02-16 00:21:01 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n60_20260216_002101.csv
-2026-02-16 00:21:01 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n60_20260216_002101.parquet
-2026-02-16 00:21:01 - __main__ - INFO - n=60: AUROC=0.4856, Pearson r=0.0055, Spearman r=-0.0249
-2026-02-16 00:21:01 - __main__ - INFO - Processing n=70
-2026-02-16 00:25:05 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n70_20260216_002505.csv
-2026-02-16 00:25:05 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n70_20260216_002505.parquet
-2026-02-16 00:25:05 - __main__ - INFO - n=70: AUROC=0.4870, Pearson r=0.0133, Spearman r=-0.0122
-2026-02-16 00:25:05 - __main__ - INFO - Processing n=80
-2026-02-16 00:29:24 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n80_20260216_002923.csv
-2026-02-16 00:29:24 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n80_20260216_002923.parquet
-2026-02-16 00:29:24 - __main__ - INFO - n=80: AUROC=0.4788, Pearson r=0.0194, Spearman r=-0.0279
-2026-02-16 00:29:24 - __main__ - INFO - Processing n=90
-2026-02-16 00:34:02 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n90_20260216_003402.csv
-2026-02-16 00:34:03 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n90_20260216_003402.parquet
-2026-02-16 00:34:03 - __main__ - INFO - n=90: AUROC=0.4778, Pearson r=-0.0108, Spearman r=-0.0433
-2026-02-16 00:34:03 - __main__ - INFO - Processing n=100
-2026-02-16 00:38:50 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n100_20260216_003850.csv
-2026-02-16 00:38:50 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n100_20260216_003850.parquet
-2026-02-16 00:38:50 - __main__ - INFO - n=100: AUROC=0.4826, Pearson r=0.0273, Spearman r=-0.0222
-2026-02-16 00:38:50 - __main__ - INFO - Processing n=150
-2026-02-16 00:45:19 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n150_20260216_004518.csv
-2026-02-16 00:45:19 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n150_20260216_004518.parquet
-2026-02-16 00:45:19 - __main__ - INFO - n=150: AUROC=0.4942, Pearson r=0.0138, Spearman r=-0.0187
-2026-02-16 00:45:19 - __main__ - INFO - Processing n=200
-2026-02-16 01:45:43 - __main__ - INFO - Starting convergence analysis
-2026-02-16 01:45:43 - __main__ - INFO - Base model: meta-llama/Llama-2-7b-chat-hf
-2026-02-16 01:45:43 - __main__ - INFO - LoRA adapter: PhillipGre/Llama-2-7b_sctt_regression
-2026-02-16 01:45:43 - __main__ - INFO - Test data: /home/ubuntu/sctt_origional_implimentation/src_phase2/../data/test_items_sctt.csv
-2026-02-16 01:45:43 - __main__ - INFO - Output directory: /home/ubuntu/sctt_origional_implimentation/phase2_results
-2026-02-16 01:45:43 - __main__ - INFO - Number of samples: 500
-2026-02-16 01:45:43 - __main__ - INFO - n values: [200]
-2026-02-16 01:45:43 - __main__ - INFO - Loading model and tokenizer
-2026-02-16 01:45:48 - __main__ - INFO - Loading generative model for semantic entropy calculation
-2026-02-16 01:45:51 - __main__ - INFO - Loading data from: /home/ubuntu/sctt_origional_implimentation/src_phase2/../data/test_items_sctt.csv
-2026-02-16 01:45:51 - __main__ - INFO - Loaded 3420 samples
-2026-02-16 01:45:51 - __main__ - INFO - Stratified sampling: 500 samples
-2026-02-16 01:45:51 - __main__ - INFO - Label range: [0.15, 0.93]
-2026-02-16 01:45:51 - __main__ - INFO - Label mean: 0.48 (+/- 0.15)
-2026-02-16 01:45:51 - __main__ - INFO - Starting convergence analysis with n_values: [200]
-2026-02-16 01:45:51 - __main__ - INFO - Dataset size: 500 samples
-2026-02-16 01:45:51 - __main__ - INFO - Processing n=200
-2026-02-16 02:12:42 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n200_20260216_021241.csv
-2026-02-16 02:12:42 - __main__ - INFO - Saved sequence-level data to: /home/ubuntu/sctt_origional_implimentation/phase2_results/sequences_n200_20260216_021241.parquet
-2026-02-16 02:12:42 - __main__ - INFO - n=200: AUROC=0.4808, Pearson r=0.0038, Spearman r=-0.0330
-2026-02-16 02:12:42 - __main__ - INFO - Saved combined analysis dataset to: /home/ubuntu/sctt_origional_implimentation/phase2_results/combined_analysis_20260216_021242.csv
-2026-02-16 02:12:42 - __main__ - INFO - Saved combined analysis dataset to: /home/ubuntu/sctt_origional_implimentation/phase2_results/combined_analysis_20260216_021242.parquet
-2026-02-16 02:12:42 - __main__ - INFO - Convergence analysis completed
-2026-02-16 02:12:42 - __main__ - INFO - Generating convergence plots
-2026-02-16 02:12:45 - __main__ - INFO - Convergence plot saved: /home/ubuntu/sctt_origional_implimentation/phase2_results/convergence_analysis_20260216_021243.png
-2026-02-16 02:12:45 - __main__ - INFO - Convergence summary saved: /home/ubuntu/sctt_origional_implimentation/phase2_results/convergence_summary_20260216_021243.csv
-2026-02-16 02:12:45 - __main__ - INFO - Generating analysis report
-2026-02-16 02:12:45 - __main__ - INFO - Analysis report saved: /home/ubuntu/sctt_origional_implimentation/phase2_results/analysis_report_20260216_021245.json
-2026-02-16 02:12:45 - __main__ - INFO - ================================================================================
-2026-02-16 02:12:45 - __main__ - INFO - CONVERGENCE ANALYSIS REPORT
-2026-02-16 02:12:45 - __main__ - INFO - ================================================================================
-2026-02-16 02:12:45 - __main__ - INFO - Samples analyzed: 500
-2026-02-16 02:12:45 - __main__ - INFO - n values tested: [200]
-2026-02-16 02:12:45 - __main__ - INFO - Recommended n: 100
-2026-02-16 02:12:45 - __main__ - INFO - AUROC improvement: +0.0000
-2026-02-16 02:12:45 - __main__ - INFO - Pearson improvement: +0.0000
-2026-02-16 02:12:45 - __main__ - INFO - Interpretation: Metrics stable across n values. Original n=10 is sufficient.
-2026-02-16 02:12:45 - __main__ - INFO - ================================================================================
-2026-02-16 02:12:45 - __main__ - INFO - Convergence analysis complete
+2026-02-17 14:16:04 - __main__ - INFO - Starting convergence analysis
+2026-02-17 14:16:04 - __main__ - INFO - Base model: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\downloaded_models/meta-llama--Llama-2-7b-chat-hf
+2026-02-17 14:16:04 - __main__ - INFO - LoRA adapter: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf/checkpoint-6000
+2026-02-17 14:16:04 - __main__ - INFO - Test data: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\data/processed/test_items_sctt.csv
+2026-02-17 14:16:04 - __main__ - INFO - Output directory: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results
+2026-02-17 14:16:04 - __main__ - INFO - Number of samples: 500
+2026-02-17 14:16:04 - __main__ - INFO - n values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+2026-02-17 14:16:04 - __main__ - INFO - Loading model and tokenizer
+2026-02-17 14:16:10 - __main__ - INFO - Loading generative model for semantic entropy calculation
+2026-02-17 14:16:11 - __main__ - INFO - Loading data from: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\data/processed/test_items_sctt.csv
+2026-02-17 14:16:11 - __main__ - INFO - Loaded 3420 samples
+2026-02-17 14:16:11 - __main__ - INFO - Stratified sampling: 500 samples
+2026-02-17 14:16:11 - __main__ - INFO - Label range: [0.15, 0.93]
+2026-02-17 14:16:11 - __main__ - INFO - Label mean: 0.48 (+/- 0.15)
+2026-02-17 14:16:11 - __main__ - INFO - Starting convergence analysis with n_values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+2026-02-17 14:16:11 - __main__ - INFO - Dataset size: 500 samples
+2026-02-17 14:16:11 - __main__ - INFO - Processing n=10
+2026-02-17 15:59:43 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n10_20260217_155943.csv
+2026-02-17 15:59:43 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n10_20260217_155943.parquet
+2026-02-17 15:59:43 - __main__ - INFO - n=10: AUROC=0.4815, Pearson r=-0.0056, Spearman r=-0.0309
+2026-02-17 15:59:43 - __main__ - INFO - Processing n=20
+2026-02-17 17:48:23 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n20_20260217_174823.csv
+2026-02-17 17:48:23 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n20_20260217_174823.parquet
+2026-02-17 17:48:23 - __main__ - INFO - n=20: AUROC=0.5107, Pearson r=0.0335, Spearman r=0.0472
+2026-02-17 17:48:23 - __main__ - INFO - Processing n=30
+2026-02-17 21:14:42 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n30_20260217_211442.csv
+2026-02-17 21:14:42 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n30_20260217_211442.parquet
+2026-02-17 21:14:42 - __main__ - INFO - n=30: AUROC=0.4898, Pearson r=0.0202, Spearman r=-0.0064
+2026-02-17 21:14:42 - __main__ - INFO - Processing n=40
+2026-02-18 01:06:45 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n40_20260218_010645.csv
+2026-02-18 01:06:45 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n40_20260218_010645.parquet
+2026-02-18 01:06:45 - __main__ - INFO - n=40: AUROC=0.5112, Pearson r=0.0349, Spearman r=0.0570
+2026-02-18 01:06:45 - __main__ - INFO - Processing n=50
+2026-02-18 07:17:26 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n50_20260218_071726.csv
+2026-02-18 07:17:26 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n50_20260218_071726.parquet
+2026-02-18 07:17:26 - __main__ - INFO - n=50: AUROC=0.5400, Pearson r=0.1263, Spearman r=0.1020
+2026-02-18 07:17:26 - __main__ - INFO - Processing n=60
+2026-02-18 21:01:36 - __main__ - INFO - Starting convergence analysis
+2026-02-18 21:01:36 - __main__ - INFO - Base model: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\downloaded_models/meta-llama--Llama-2-7b-chat-hf
+2026-02-18 21:01:36 - __main__ - INFO - LoRA adapter: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf/checkpoint-6000
+2026-02-18 21:01:36 - __main__ - INFO - Test data: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\data/processed/test_items_sctt.csv
+2026-02-18 21:01:36 - __main__ - INFO - Output directory: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results
+2026-02-18 21:01:36 - __main__ - INFO - Number of samples: 500
+2026-02-18 21:01:36 - __main__ - INFO - n values: [60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+2026-02-18 21:01:36 - __main__ - INFO - Loading model and tokenizer
+2026-02-18 21:01:41 - __main__ - INFO - Loading generative model for semantic entropy calculation
+2026-02-18 21:01:42 - __main__ - INFO - Loading data from: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\data/processed/test_items_sctt.csv
+2026-02-18 21:01:42 - __main__ - INFO - Loaded 3420 samples
+2026-02-18 21:01:42 - __main__ - INFO - Stratified sampling: 500 samples
+2026-02-18 21:01:42 - __main__ - INFO - Label range: [0.15, 0.93]
+2026-02-18 21:01:42 - __main__ - INFO - Label mean: 0.48 (+/- 0.15)
+2026-02-18 21:01:42 - __main__ - INFO - Starting convergence analysis with n_values: [60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+2026-02-18 21:01:42 - __main__ - INFO - Dataset size: 500 samples
+2026-02-18 21:01:42 - __main__ - INFO - Processing n=60
+2026-02-18 21:02:45 - __main__ - INFO - Starting convergence analysis
+2026-02-18 21:02:45 - __main__ - INFO - Base model: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\downloaded_models/meta-llama--Llama-2-7b-chat-hf
+2026-02-18 21:02:45 - __main__ - INFO - LoRA adapter: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf/checkpoint-6000
+2026-02-18 21:02:45 - __main__ - INFO - Test data: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\data/processed/test_items_sctt.csv
+2026-02-18 21:02:45 - __main__ - INFO - Output directory: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results
+2026-02-18 21:02:45 - __main__ - INFO - Number of samples: 500
+2026-02-18 21:02:45 - __main__ - INFO - n values: [60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+2026-02-18 21:02:45 - __main__ - INFO - Loading model and tokenizer
+2026-02-18 21:02:51 - __main__ - INFO - Loading generative model for semantic entropy calculation
+2026-02-18 21:02:51 - __main__ - INFO - Loading data from: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\data/processed/test_items_sctt.csv
+2026-02-18 21:02:51 - __main__ - INFO - Loaded 3420 samples
+2026-02-18 21:02:52 - __main__ - INFO - Stratified sampling: 500 samples
+2026-02-18 21:02:52 - __main__ - INFO - Label range: [0.15, 0.93]
+2026-02-18 21:02:52 - __main__ - INFO - Label mean: 0.48 (+/- 0.15)
+2026-02-18 21:02:52 - __main__ - INFO - Starting convergence analysis with n_values: [60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+2026-02-18 21:02:52 - __main__ - INFO - Dataset size: 500 samples
+2026-02-18 21:02:52 - __main__ - INFO - Processing n=60
+2026-02-19 02:43:38 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n60_20260219_024338.csv
+2026-02-19 02:43:38 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n60_20260219_024338.parquet
+2026-02-19 02:43:38 - __main__ - INFO - n=60: AUROC=0.5256, Pearson r=0.0725, Spearman r=0.0913
+2026-02-19 02:43:38 - __main__ - INFO - Processing n=70
+2026-02-19 06:28:25 - __main__ - INFO - Starting convergence analysis
+2026-02-19 06:28:25 - __main__ - INFO - Base model: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\downloaded_models/meta-llama--Llama-2-7b-chat-hf
+2026-02-19 06:28:25 - __main__ - INFO - LoRA adapter: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf/checkpoint-6000
+2026-02-19 06:28:25 - __main__ - INFO - Test data: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\data/processed/test_items_sctt.csv
+2026-02-19 06:28:25 - __main__ - INFO - Output directory: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results
+2026-02-19 06:28:25 - __main__ - INFO - Number of samples: 500
+2026-02-19 06:28:25 - __main__ - INFO - n values: [60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+2026-02-19 06:28:25 - __main__ - INFO - Loading model and tokenizer
+2026-02-19 06:28:51 - __main__ - INFO - Starting convergence analysis
+2026-02-19 06:28:51 - __main__ - INFO - Base model: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\downloaded_models/meta-llama--Llama-2-7b-chat-hf
+2026-02-19 06:28:51 - __main__ - INFO - LoRA adapter: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf/checkpoint-6000
+2026-02-19 06:28:51 - __main__ - INFO - Test data: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\data/processed/test_items_sctt.csv
+2026-02-19 06:28:51 - __main__ - INFO - Output directory: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results
+2026-02-19 06:28:51 - __main__ - INFO - Number of samples: 500
+2026-02-19 06:28:51 - __main__ - INFO - n values: [60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+2026-02-19 06:28:51 - __main__ - INFO - Loading model and tokenizer
+2026-02-19 06:28:57 - __main__ - INFO - Loading generative model for semantic entropy calculation
+2026-02-19 06:28:57 - __main__ - INFO - Loading data from: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\data/processed/test_items_sctt.csv
+2026-02-19 06:28:57 - __main__ - INFO - Loaded 3420 samples
+2026-02-19 06:28:57 - __main__ - INFO - Stratified sampling: 500 samples
+2026-02-19 06:28:57 - __main__ - INFO - Label range: [0.15, 0.93]
+2026-02-19 06:28:57 - __main__ - INFO - Label mean: 0.48 (+/- 0.15)
+2026-02-19 06:28:57 - __main__ - INFO - Starting convergence analysis with n_values: [60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+2026-02-19 06:28:57 - __main__ - INFO - Dataset size: 500 samples
+2026-02-19 06:28:57 - __main__ - INFO - Processing n=60
+2026-02-19 12:16:06 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n60_20260219_121605.csv
+2026-02-19 12:16:06 - __main__ - INFO - Saved sequence-level data to: c:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work\phase2_results\sequences_n60_20260219_121605.parquet
+2026-02-19 12:16:06 - __main__ - INFO - n=60: AUROC=0.5256, Pearson r=0.0725, Spearman r=0.0913
+2026-02-19 12:16:06 - __main__ - INFO - Processing n=70

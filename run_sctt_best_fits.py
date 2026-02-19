@@ -8,9 +8,9 @@ import sys
 import torch
 torch.cuda.empty_cache()
 from datasets import Dataset, DatasetDict
-from dataprocessing import preprocess_llm_data
+from src_phase1.helpers.dataprocessing import preprocess_llm_data
 from functools import partial
-from lora_misc import *
+from src_phase1.helpers.lora_misc import *
 from pynvml import *
 from sklearn.preprocessing import MinMaxScaler
 from transformers import AutoTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer, LlamaConfig

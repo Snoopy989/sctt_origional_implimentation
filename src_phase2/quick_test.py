@@ -31,9 +31,12 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 import re
+import gc
 
 warnings.filterwarnings('ignore')
-load_dotenv()
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
 set_seed(42)
 
 
@@ -96,6 +99,7 @@ class SemanticEntropyCalculator:
         self,
         model,
         tokenizer,
+        regression_model=None,
         num_generations: int = 10,
         temperature: float = 0.5,
         max_new_tokens: int = 10,
@@ -107,6 +111,7 @@ class SemanticEntropyCalculator:
     ):
         self.model = model
         self.tokenizer = tokenizer
+        self.regression_model = regression_model if regression_model is not None else model
         self.num_generations = num_generations
         self.temperature = temperature
         self.max_new_tokens = max_new_tokens
@@ -126,61 +131,96 @@ class SemanticEntropyCalculator:
         ).to(self.device)
         
         sequences = []
-        
-        # Generate in batches to avoid OOM for large num_generations
-        num_batches = (self.num_generations + self.generation_batch_size - 1) // self.generation_batch_size
-        
+
+        generated_count = 0
+        current_batch_size = min(self.generation_batch_size, self.num_generations)
+
         with torch.no_grad():
-            for batch_idx in range(num_batches):
-                batch_start = batch_idx * self.generation_batch_size
-                batch_end = min(batch_start + self.generation_batch_size, self.num_generations)
-                batch_size = batch_end - batch_start
-                
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=self.max_new_tokens,
-                    do_sample=True,
-                    temperature=self.temperature,
-                    top_p=0.95,
-                    num_return_sequences=batch_size,
-                    pad_token_id=self.tokenizer.pad_token_id,
-                    output_scores=True,
-                    return_dict_in_generate=True
-                )
-                
-                input_length = inputs.input_ids.shape[1]
-                
-                for i in range(batch_size):
-                    generated_ids = outputs.sequences[i][input_length:]
-                    generated_text = self.tokenizer.decode(
-                        generated_ids, 
-                        skip_special_tokens=True
-                    ).strip()
-                    
-                    scores = torch.stack(outputs.scores, dim=1)
-                    probs = torch.softmax(scores[i], dim=-1)
-                    
-                    token_log_probs = torch.log(
-                        probs[torch.arange(len(generated_ids)), generated_ids]
+            while generated_count < self.num_generations:
+                batch_size = min(current_batch_size, self.num_generations - generated_count)
+
+                try:
+                    if self.device == "cuda":
+                        torch.cuda.synchronize()
+
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=self.max_new_tokens,
+                        do_sample=True,
+                        temperature=self.temperature,
+                        top_p=0.95,
+                        num_return_sequences=batch_size,
+                        pad_token_id=self.tokenizer.pad_token_id,
+                        output_scores=True,
+                        return_dict_in_generate=True
                     )
-                    avg_log_prob = token_log_probs.mean().item()
-                    
-                    try:
-                        numerical_score = float(generated_text.strip())
-                    except:
-                        numbers = re.findall(r'-?\d+\.?\d*', generated_text)
-                        numerical_score = float(numbers[0]) if numbers else 0.0
-                    
-                    sequences.append({
-                        'text': generated_text,
-                        'score': numerical_score,
-                        'log_prob': avg_log_prob,
-                        'tokens': generated_ids.cpu().tolist()
-                    })
-                
-                # Clear GPU cache between batches to avoid memory fragmentation
-                if self.device == "cuda" and batch_idx < num_batches - 1:
+
+                    input_length = inputs.input_ids.shape[1]
+
+                    for i in range(batch_size):
+                        generated_ids = outputs.sequences[i][input_length:]
+                        generated_text = self.tokenizer.decode(
+                            generated_ids,
+                            skip_special_tokens=True
+                        ).strip()
+
+                        scores = torch.stack(outputs.scores, dim=1)
+                        probs = torch.softmax(scores[i], dim=-1)
+
+                        token_log_probs = torch.log(
+                            probs[torch.arange(len(generated_ids)), generated_ids]
+                        )
+                        avg_log_prob = token_log_probs.mean().item()
+
+                        # Get regression prediction score for this generated sequence
+                        full_sequence = self.tokenizer.decode(
+                            outputs.sequences[i],
+                            skip_special_tokens=True
+                        ).strip()
+
+                        # Score the full sequence with regression model
+                        seq_inputs = self.tokenizer(
+                            full_sequence,
+                            return_tensors="pt",
+                            truncation=True,
+                            max_length=self.max_length
+                        ).to(self.device)
+
+                        reg_outputs = self.regression_model(**seq_inputs)
+                        regression_score = reg_outputs.logits.squeeze().item()
+
+                        sequences.append({
+                            'text': generated_text,
+                            'score': regression_score,
+                            'log_prob': avg_log_prob,
+                            'tokens': generated_ids.cpu().tolist()
+                        })
+
+                        del seq_inputs, reg_outputs
+
+                    generated_count += batch_size
+                    current_batch_size = min(current_batch_size, self.generation_batch_size)
+
+                    del outputs, scores, probs, token_log_probs
+
+                except RuntimeError as e:
+                    err_text = str(e)
+                    is_cuda_error = "CUDA" in err_text or "device-side" in err_text or "out of memory" in err_text
+
+                    if is_cuda_error and batch_size > 1:
+                        current_batch_size = max(1, batch_size // 2)
+                        if self.device == "cuda":
+                            torch.cuda.empty_cache()
+                            torch.cuda.ipc_collect()
+                        gc.collect()
+                        continue
+
+                    raise
+
+                # Clear GPU cache between micro-batches to reduce fragmentation
+                if self.device == "cuda":
                     torch.cuda.empty_cache()
+                    gc.collect()
         
         return sequences
     
@@ -471,6 +511,7 @@ class ConvergenceAnalyzer:
             entropy_calculator = SemanticEntropyCalculator(
                 model=self.generative_model,
                 tokenizer=self.tokenizer,
+                regression_model=self.model,
                 num_generations=n,
                 temperature=0.5,
                 eps=0.5,
@@ -651,6 +692,7 @@ class ConvergenceAnalyzer:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         combined_data = []
+        combined_sequence_data = []
         
         for n, results_dict in all_results.items():
             raw_results = results_dict.get('raw_results', [])
@@ -673,6 +715,56 @@ class ConvergenceAnalyzer:
                 metadata = result.get('entropy_metadata', {})
                 sequences = metadata.get('sequences', [])
                 clusters = metadata.get('clusters', [])
+
+                sequence_to_cluster = {}
+                for cluster_id, cluster_indices in enumerate(clusters):
+                    for seq_idx in cluster_indices:
+                        sequence_to_cluster[seq_idx] = cluster_id
+
+                combined_sequence_data.append({
+                    'sample_id': sample_id,
+                    'item': item,
+                    'prompt': prompt,
+                    'response': response,
+                    'label_true': label_true,
+                    'n_generations': n,
+                    'forward_pass_type': 'greedy',
+                    'forward_pass_idx': -1,
+                    'sequence_text': response,
+                    'sequence_score': label_pred,
+                    'sequence_log_prob': None,
+                    'cluster_id': None,
+                    'semantic_entropy': semantic_entropy,
+                    'num_clusters': num_clusters,
+                    'ci_lower': ci_lower,
+                    'ci_upper': ci_upper,
+                    'ci_width': ci_width,
+                    'error': error,
+                    'needs_review': needs_review
+                })
+
+                for seq_idx, seq in enumerate(sequences):
+                    combined_sequence_data.append({
+                        'sample_id': sample_id,
+                        'item': item,
+                        'prompt': prompt,
+                        'response': response,
+                        'label_true': label_true,
+                        'n_generations': n,
+                        'forward_pass_type': 'sampled',
+                        'forward_pass_idx': seq_idx,
+                        'sequence_text': seq.get('text', ''),
+                        'sequence_score': seq.get('score', None),
+                        'sequence_log_prob': seq.get('log_prob', None),
+                        'cluster_id': sequence_to_cluster.get(seq_idx, -1),
+                        'semantic_entropy': semantic_entropy,
+                        'num_clusters': num_clusters,
+                        'ci_lower': ci_lower,
+                        'ci_upper': ci_upper,
+                        'ci_width': ci_width,
+                        'error': error,
+                        'needs_review': needs_review
+                    })
                 
                 # Aggregate statistics over sequences
                 if sequences:
@@ -715,6 +807,19 @@ class ConvergenceAnalyzer:
             self.logger.info(f"Saved combined analysis dataset to: {parquet_path}")
         except Exception as e:
             self.logger.warning(f"Could not save parquet (install pyarrow): {e}")
+
+        df_all_sequences = pd.DataFrame(combined_sequence_data)
+
+        all_sequences_csv_path = os.path.join(self.output_dir, f'all_forward_pass_predictions_{timestamp}.csv')
+        df_all_sequences.to_csv(all_sequences_csv_path, index=False)
+        self.logger.info(f"Saved all forward-pass predictions to: {all_sequences_csv_path}")
+
+        try:
+            all_sequences_parquet_path = os.path.join(self.output_dir, f'all_forward_pass_predictions_{timestamp}.parquet')
+            df_all_sequences.to_parquet(all_sequences_parquet_path, index=False)
+            self.logger.info(f"Saved all forward-pass predictions to: {all_sequences_parquet_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not save all forward-pass parquet (install pyarrow): {e}")
     
     def _log_metrics(self, n: int, metrics: Dict, review_stats: Dict):
         """Log computed metrics."""
@@ -954,6 +1059,9 @@ class DataProcessor:
 
 def main():
     import argparse
+
+    default_base_model = os.getenv('BASE_MODEL_PATH') or os.getenv('MODEL_NAME')
+    default_lora_adapter = os.getenv('ADAPTER_PATH', './Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf/checkpoint-6000')
     
     parser = argparse.ArgumentParser(
         description="Convergence Analysis: Determine optimal number of generations (n=10-200)"
@@ -961,19 +1069,19 @@ def main():
     parser.add_argument(
         "--base_model",
         type=str,
-        default=os.getenv('MODEL_NAME'),
+        default=default_base_model,
         help="Base model path"
     )
     parser.add_argument(
         "--lora_adapter",
         type=str,
-        default="PhillipGre/Llama-2-7b_sctt_regression",
+        default=default_lora_adapter,
         help="Path to LoRA adapter"
     )
     parser.add_argument(
         "--test_data",
         type=str,
-        default="../data/test_items_sctt.csv",
+        default="./data/processed/test_items_sctt.csv",
         help="Path to test dataset CSV"
     )
     parser.add_argument(
@@ -986,7 +1094,8 @@ def main():
         "--n_values",
         type=int,
         nargs='+',
-        default=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200],
+        default=list(range(60, 201, 10)),
+        # default=[10],
         help="List of n values to test"
     )
     parser.add_argument(
@@ -1007,14 +1116,32 @@ def main():
     if args.base_model is None:
         raise ValueError("MODEL_NAME not set. Set in .env or use --base_model")
     
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(script_dir)
-    
+    script_dir = SCRIPT_DIR
+    project_root = PROJECT_ROOT
+
+    if not os.path.isabs(args.base_model):
+        args.base_model = os.path.join(project_root, args.base_model.replace('./', '').replace('.\\', ''))
+    if args.lora_adapter and not os.path.isabs(args.lora_adapter):
+        args.lora_adapter = os.path.join(project_root, args.lora_adapter.replace('./', '').replace('.\\', ''))
+
     if not os.path.isabs(args.test_data):
-        test_path1 = os.path.join(script_dir, args.test_data)
-        test_path2 = os.path.join(project_root, args.test_data.replace('../', ''))
-        args.test_data = test_path1 if os.path.exists(test_path1) else test_path2
-    
+        test_candidates = [
+            os.path.join(script_dir, args.test_data),
+            os.path.join(project_root, args.test_data.replace('../', '').replace('./', '')),
+            os.path.join(project_root, 'data', 'processed', 'test_items_sctt.csv'),
+            os.path.join(project_root, 'data', 'test_items_sctt.csv')
+        ]
+        args.test_data = next((p for p in test_candidates if os.path.exists(p)), test_candidates[0])
+
+    if not os.path.exists(args.test_data):
+        raise FileNotFoundError(f"Test dataset not found. Tried path: {args.test_data}")
+
+    if not os.path.exists(args.base_model):
+        raise FileNotFoundError(f"Base model path not found: {args.base_model}")
+
+    if args.lora_adapter and not os.path.exists(args.lora_adapter):
+        raise FileNotFoundError(f"LoRA adapter path not found: {args.lora_adapter}")
+
     if not os.path.isabs(args.output_dir):
         output_path_from_root = os.path.join(project_root, args.output_dir.replace('./', '').replace('.\\', ''))
         args.output_dir = output_path_from_root

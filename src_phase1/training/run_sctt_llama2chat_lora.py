@@ -3,6 +3,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # set GPU import quant import torch i
 
 # bitsandbytes not needed - using full precision training
 import sys
+# Add workspace root to Python path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from dotenv import load_dotenv
 import evaluate
@@ -10,6 +12,11 @@ import numpy as np
 import pandas as pd
 import sys
 import torch
+import warnings
+
+# Suppress HuggingFace Hub authentication warnings during save
+warnings.filterwarnings('ignore', message='Unable to fetch remote file')
+warnings.filterwarnings('ignore', message='Could not find a config file')
 torch.cuda.empty_cache()
 from datasets import Dataset, DatasetDict
 from src_phase1.helpers.dataprocessing import preprocess_llm_data
@@ -31,7 +38,7 @@ config = AutoConfig.from_pretrained(model_name, token=hftoken)
 config.num_labels = 1
 config.problem_type = "regression"
 # model_names = ['meta-llama/Llama-2-7b-hf', 'meta-llama/Llama-2-7b-chat-hf']
-epochs = 10
+epochs = 1
 val_pct = 0.10 # proportion of total dataset allocated to validation
 test_pct = 0.20  # proportion of the dataset to devote to held-out test set
 val_train_pct = (1.0/(1.0-test_pct))*val_pct # we have to get the val set from training subset, so pct needs to be modified
@@ -48,9 +55,9 @@ trainer_args = TrainingArguments(
   save_strategy="steps",
   save_steps = 1000,
   learning_rate = 5e-5,
-  per_device_train_batch_size=1,  # Reduced to avoid OOM
-  per_device_eval_batch_size=1,
-  gradient_accumulation_steps=4,  # Effective batch size = 4
+  per_device_train_batch_size=4,  # Smaller for better convergence
+  per_device_eval_batch_size=4,
+  gradient_accumulation_steps=4,  # Effective batch size = 16
   warmup_steps = 1000,
   bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
   fp16 = not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()),
@@ -65,11 +72,18 @@ lora_alpha = 32
 lora_dropout = 0.1
 
 #  LOAD & PREPARE DATA
-d = pd.read_csv('all_sctt_jrt.csv')
-gen = pd.read_csv('sctt_item-generalization_jrt.csv')
+d = pd.read_csv('data/raw/all_sctt_jrt.csv')
+gen = pd.read_csv('data/raw/sctt_item-generalization_jrt.csv')
 
 #  INITIALIZE MODEL & TOKENIZER (PRE-TRAINED)
 model, tokenizer = load_model(model_name, config, hftoken)
+
+# Add padding token (CRITICAL for batch training)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+
+model.config.pad_token_id = tokenizer.pad_token_id # Ensure model has pad_token_id set
 # Explicitly move model to GPU
 model = model.to(device)
 # Save VRAM during training
@@ -80,7 +94,15 @@ max_length = int(get_max_length(model)/max_length_divisor)
 
 #  GENERATE PEFT CONFIG & PEFT MODEL
 modules = find_all_linear_names(model)
-peftconfig = create_peft_config(r, lora_alpha, lora_dropout, modules)
+modules = [m for m in modules if m != 'score']  # <-- ADD THIS LINE
+peftconfig = LoraConfig(
+    r=r,
+    lora_alpha=lora_alpha,
+    lora_dropout=lora_dropout,
+    target_modules=modules,
+    modules_to_save=["score"],
+    task_type="SEQ_CLS",
+)
 model = get_peft_model(model, peftconfig)
 print(model.print_trainable_parameters())
 
@@ -101,7 +123,7 @@ trainer = Trainer(
   train_dataset=tokenized_datasets["train"],
   eval_dataset=tokenized_datasets["validation"],
   compute_metrics=compute_metrics,
-  tokenizer=tokenizer,
+  processing_class=tokenizer
 )
 
 # Check for existing checkpoints and resume if available
@@ -125,13 +147,43 @@ val_output_df.to_csv('validation_output_sctt_results_{}_{}.csv'.format(expname,m
 # TEST
 test_prediction = trainer.predict(tokenized_datasets['test'])
 test_output_df = pd.DataFrame({'preds': test_prediction.predictions.flatten(), 'ratings': test_prediction.label_ids})
-test_output_df.to_csv('test_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1], index = False))
+test_output_df.to_csv('test_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1]), index = False)
 # print('\n\n\n\n\n\nTEST MSE:', test_prediction.metrics['test_mse'])
 # print('TEST CORR:', test_prediction.metrics['test_corr'])
 
 #  HELDOUT TEST
 heldout_prediction = trainer.predict(tokenized_datasets['heldout'])
 heldoutprompt_output_df = pd.DataFrame({'preds': heldout_prediction.predictions.flatten(), 'ratings': heldout_prediction.label_ids})
-heldoutprompt_output_df.to_csv('heldoutprompt_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1], index = False))
+heldoutprompt_output_df.to_csv('heldoutprompt_output_sctt_results_{}_{}.csv'.format(expname,model_name.split('/')[1]), index = False)
 # print('\n\n\n\n\n\nHOLDOUT MSE:', heldout_prediction.metrics['heldout_prompt_mse'])
 # print('HOLDOUT CORR:', heldout_prediction.metrics['heldout_prompt_corr'])
+
+
+# SAVE MODEL PROPERLY
+os.makedirs('models', exist_ok=True)
+save_path = './models/Llama-2-7b_sctt_regression'
+model.save_pretrained(save_path)
+tokenizer.save_pretrained(save_path)
+
+# FIX: Update adapter_config.json to use local base model path instead of HuggingFace Hub
+import json
+adapter_config_path = os.path.join(save_path, 'adapter_config.json')
+if os.path.exists(adapter_config_path):
+    with open(adapter_config_path, 'r') as f:
+        adapter_config = json.load(f)
+    
+    # Update to point to local base model (adjust path if you have base model saved locally)
+    # For now, keep it as a relative identifier that won't trigger HF lookups
+    adapter_config['base_model_name_or_path'] = model_name
+    
+    # Fix: Remove duplicate entries in modules_to_save
+    if 'modules_to_save' in adapter_config:
+        adapter_config['modules_to_save'] = list(set(adapter_config['modules_to_save']))
+    
+    with open(adapter_config_path, 'w') as f:
+        json.dump(adapter_config, f, indent=2)
+    
+    print(f'Model saved to: {save_path}')
+    print(f'Note: Adapter config references base model: {model_name}')
+else:
+    print(f'Model saved to: {save_path}')
