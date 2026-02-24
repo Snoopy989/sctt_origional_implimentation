@@ -28,3 +28,60 @@ Running heldout predictions...
 2026-02-09 12:51:51,963 - INFO - Test predictions: test_output_sctt_results_LORA_10_epochs_Llama-2-13b-chat-hf.csv
 2026-02-09 12:51:51,963 - INFO - Heldout predictions: heldoutprompt_output_sctt_results_LORA_10_epochs_Llama-2-13b-chat-hf.csv
 ubuntu@129-213-31-47:~/sctt_origional_implimentation$ python compute_epoch_wise_results.py
+
+
+
+###############
+7b
+##############
+==========================================================================================
+EPOCH PERFORMANCE (VALIDATION - Pearson r)
+==========================================================================================
+     split  epoch  pearson_r       p_value  n_samples                                                                                     source_file                    source_dir
+validation     10   0.722830 1.916043e-276       1710              results\training\validation_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv              results\training
+validation     10   0.552590 2.557075e-137       1710 results\training_cluster_good\validation_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv results\training_cluster_good
+validation      1   0.248261  1.963790e-25       1710               results\training\validation_output_inference_LORA_1_epochs_Llama-2-7b-chat-hf.csv              results\training
+==========================================================================================
+
+BEST (validation): epoch=10
+  Pearson r: 0.7228
+  p-value:   0.000000
+  Samples:   1710
+Saved: epoch_performance_validation.csv
+
+==========================================================================================
+EPOCH PERFORMANCE (TEST - Pearson r)
+==========================================================================================
+split  epoch  pearson_r       p_value  n_samples                                                                               source_file                    source_dir
+ test     10   0.742607  0.000000e+00       3420              results\training\test_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv              results\training
+ test     10   0.573267 4.450750e-298       3420 results\training_cluster_good\test_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv results\training_cluster_good
+==========================================================================================
+
+BEST (test): epoch=10
+  Pearson r: 0.7426
+  p-value:   0.000000
+  Samples:   3420
+Saved: epoch_performance_test.csv
+
+==========================================================================================
+EPOCH PERFORMANCE (HELDOUT - Pearson r)
+==========================================================================================
+  split  epoch  pearson_r      p_value  n_samples                                                                                  source_file                    source_dir
+heldout     10   0.492094 7.463784e-66       1062              results\training\heldout_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv              results\training
+heldout     10   0.280166 1.322447e-20       1062 results\training_cluster_good\heldout_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv results\training_cluster_good
+==========================================================================================
+
+BEST (heldout): epoch=10
+  Pearson r: 0.4921
+  p-value:   0.000000
+  Samples:   1062
+Saved: epoch_performance_heldout.csv
+
+##########################################################################################
+RECOMMENDED EPOCH (based on VALIDATION Pearson r)
+##########################################################################################
+epoch:      10
+pearson_r:  0.7228
+source:     results\training\validation_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv
+##########################################################################################
+(.venv) PS C:\Users\Phillip\Documents\05 - KSU (MSAI)\Fall_2025\sctt_origional_work>

@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
-from huggingface_hub import HfApi, create_repo
+from huggingface_hub import HfApi, create_repo, hf_hub_download
 
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_REPO_ID = "PhillipGre/Llama-2-7b_sctt_regression"
 DEFAULT_OLDGOOD_DIR = "Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf"
-DEFAULT_BEST_CHECKPOINT_DIR = "sctt_results_LORA_1_epochs_Llama-2-7b-chat-hf/checkpoint-748"
+DEFAULT_BEST_CHECKPOINT_DIR = "Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf/checkpoint-6000"
 
 REQUIRED_INFERENCE_FILES = [
     "adapter_config.json",
@@ -37,6 +37,50 @@ OPTIONAL_TRAINING_FILES = [
     "scheduler.pt",
     "rng_state.pth",
 ]
+
+
+def has_adapter_weights(path: Path) -> bool:
+    return (path / "adapter_model.safetensors").exists() or (path / "adapter_model.bin").exists()
+
+
+def resolve_adapter_source_dir(source_dir: Path) -> Path:
+    if (source_dir / "adapter_config.json").exists() and has_adapter_weights(source_dir):
+        return source_dir
+
+    trainer_state_path = source_dir / "trainer_state.json"
+    if trainer_state_path.exists():
+        try:
+            with open(trainer_state_path, "r", encoding="utf-8") as fp:
+                trainer_state = json.load(fp)
+            best_checkpoint = trainer_state.get("best_model_checkpoint")
+            if best_checkpoint:
+                best_name = Path(best_checkpoint).name
+                best_dir = source_dir / best_name
+                if (best_dir / "adapter_config.json").exists() and has_adapter_weights(best_dir):
+                    logger.info("Resolved adapter source %s -> %s (from trainer_state best_model_checkpoint)", source_dir, best_dir)
+                    return best_dir
+        except Exception as exc:
+            logger.warning("Could not parse trainer_state.json in %s: %s", source_dir, exc)
+
+    checkpoint_dirs = [
+        p for p in source_dir.glob("checkpoint-*")
+        if p.is_dir() and (p / "adapter_config.json").exists() and has_adapter_weights(p)
+    ]
+    if not checkpoint_dirs:
+        raise FileNotFoundError(
+            f"No adapter checkpoint found under: {source_dir}. "
+            "Expected adapter_config.json and adapter_model.safetensors (or adapter_model.bin)."
+        )
+
+    def checkpoint_step(path: Path) -> int:
+        try:
+            return int(path.name.split("checkpoint-")[-1])
+        except ValueError:
+            return -1
+
+    selected = max(checkpoint_dirs, key=checkpoint_step)
+    logger.info("Resolved adapter source %s -> %s", source_dir, selected)
+    return selected
 
 
 def load_token() -> str:
@@ -134,6 +178,73 @@ def upload_bundle(bundle_dir: Path, repo_id: str, token: str, commit_message: st
     )
 
 
+def upload_full_source(source_dir: Path, repo_id: str, token: str, commit_message: str, private: bool) -> None:
+    api = HfApi(token=token)
+
+    create_repo(
+        repo_id=repo_id,
+        token=token,
+        private=private,
+        exist_ok=True,
+    )
+
+    api.upload_folder(
+        folder_path=str(source_dir),
+        repo_id=repo_id,
+        commit_message=commit_message,
+    )
+
+
+def verify_remote_upload(repo_id: str, token: str, expected_source: str | None = None) -> None:
+    api = HfApi(token=token)
+    repo_files = set(api.list_repo_files(repo_id=repo_id, repo_type="model"))
+
+    missing_required = [f for f in REQUIRED_INFERENCE_FILES if f not in repo_files]
+    if missing_required:
+        raise RuntimeError(
+            f"Upload verification failed. Missing required files in remote repo: {missing_required}"
+        )
+
+    if expected_source:
+        manifest_local = hf_hub_download(
+            repo_id=repo_id,
+            repo_type="model",
+            filename="upload_manifest.json",
+            token=token,
+        )
+        with open(manifest_local, "r", encoding="utf-8") as fp:
+            manifest = json.load(fp)
+
+        preferred = str(manifest.get("preferred_dir", ""))
+        fallback = str(manifest.get("fallback_dir", ""))
+        expected_norm = str(Path(expected_source).resolve())
+
+        if expected_norm not in (preferred, fallback):
+            raise RuntimeError(
+                "Upload verification failed. Manifest source mismatch. "
+                f"Expected source: {expected_norm} | preferred: {preferred} | fallback: {fallback}"
+            )
+
+
+def verify_remote_full_upload(repo_id: str, token: str, source_dir: Path) -> None:
+    api = HfApi(token=token)
+    repo_files = set(api.list_repo_files(repo_id=repo_id, repo_type="model"))
+
+    local_files = [
+        p.relative_to(source_dir).as_posix()
+        for p in source_dir.rglob("*")
+        if p.is_file()
+    ]
+
+    missing = [p for p in local_files if p not in repo_files]
+    if missing:
+        preview = missing[:10]
+        raise RuntimeError(
+            "Full upload verification failed. Missing files in remote repo: "
+            f"{preview}{' ...' if len(missing) > 10 else ''}"
+        )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Upload the 7B SCTT LoRA model to Hugging Face with preferred+fallback file sourcing."
@@ -148,6 +259,11 @@ def parse_args() -> argparse.Namespace:
         "--fallback-dir",
         default=DEFAULT_OLDGOOD_DIR,
         help="Fallback source directory (old known-good model)",
+    )
+    parser.add_argument(
+        "--source-dir",
+        default=None,
+        help="Use one explicit source directory for all files (overrides preferred/fallback)",
     )
     parser.add_argument(
         "--commit-message",
@@ -165,6 +281,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Prepare and print bundle contents without uploading",
     )
+    parser.add_argument(
+        "--full-source-upload",
+        action="store_true",
+        help="Upload entire source directory recursively (all files/checkpoints), skipping minimal bundle mode",
+    )
     return parser.parse_args()
 
 
@@ -181,18 +302,37 @@ def resolve_commit_message(cli_message: str | None) -> str:
 def main() -> None:
     args = parse_args()
 
-    preferred_dir = Path(args.preferred_dir)
-    fallback_dir = Path(args.fallback_dir)
+    if args.source_dir:
+        source_dir = Path(args.source_dir)
+        preferred_dir = source_dir
+        fallback_dir = source_dir
+        logger.info("Using explicit source-dir mode: %s", source_dir)
+    else:
+        source_dir = Path(args.preferred_dir)
+        preferred_dir = Path(args.preferred_dir)
+        fallback_dir = Path(args.fallback_dir)
 
-    bundle_dir = build_upload_bundle(
-        preferred_dir=preferred_dir,
-        fallback_dir=fallback_dir,
-        include_training_artifacts=args.include_training_artifacts,
-    )
+    if args.full_source_upload:
+        if not source_dir.exists():
+            raise FileNotFoundError(f"Source directory not found for full upload: {source_dir}")
 
-    file_count = sum(1 for p in bundle_dir.rglob("*") if p.is_file())
-    logger.info("Prepared upload bundle at %s (%d files)", bundle_dir, file_count)
-    logger.info("Target repo: %s", args.repo_id)
+        full_file_count = sum(1 for p in source_dir.rglob("*") if p.is_file())
+        logger.info("Prepared full-source upload from %s (%d files)", source_dir, full_file_count)
+        logger.info("Target repo: %s", args.repo_id)
+        bundle_dir = None
+    else:
+        preferred_dir = resolve_adapter_source_dir(preferred_dir)
+        fallback_dir = resolve_adapter_source_dir(fallback_dir)
+
+        bundle_dir = build_upload_bundle(
+            preferred_dir=preferred_dir,
+            fallback_dir=fallback_dir,
+            include_training_artifacts=args.include_training_artifacts,
+        )
+
+        file_count = sum(1 for p in bundle_dir.rglob("*") if p.is_file())
+        logger.info("Prepared upload bundle at %s (%d files)", bundle_dir, file_count)
+        logger.info("Target repo: %s", args.repo_id)
 
     if args.dry_run:
         logger.info("Dry-run enabled. No upload performed.")
@@ -200,13 +340,33 @@ def main() -> None:
 
     commit_message = resolve_commit_message(args.commit_message)
     token = load_token()
-    upload_bundle(
-        bundle_dir=bundle_dir,
-        repo_id=args.repo_id,
-        token=token,
-        commit_message=commit_message,
-        private=args.private,
-    )
+    if args.full_source_upload:
+        upload_full_source(
+            source_dir=source_dir,
+            repo_id=args.repo_id,
+            token=token,
+            commit_message=commit_message,
+            private=args.private,
+        )
+        verify_remote_full_upload(
+            repo_id=args.repo_id,
+            token=token,
+            source_dir=source_dir,
+        )
+    else:
+        upload_bundle(
+            bundle_dir=bundle_dir,
+            repo_id=args.repo_id,
+            token=token,
+            commit_message=commit_message,
+            private=args.private,
+        )
+
+        verify_remote_upload(
+            repo_id=args.repo_id,
+            token=token,
+            expected_source=args.source_dir,
+        )
 
     logger.info("Upload complete.")
     logger.info("Model URL: https://huggingface.co/%s", args.repo_id)
