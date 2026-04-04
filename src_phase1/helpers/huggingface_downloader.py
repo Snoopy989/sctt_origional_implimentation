@@ -69,16 +69,25 @@ def download_model(model_name=None, save_directory="./downloaded_models", auth_t
 
         logging.info(f"Downloading {model_name} to: {save_path}")
 
-        # Download the model
-        downloaded_path = snapshot_download(
-            repo_id=model_name,
-            local_dir=str(save_path),
-            local_dir_use_symlinks=False,
-            token=auth_token
-        )
-
-        logging.info(f"Model downloaded successfully to: {downloaded_path}")
-        return str(save_path)
+        # Download the model — snapshot_download is resumable; re-run if interrupted
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                downloaded_path = snapshot_download(
+                    repo_id=model_name,
+                    local_dir=str(save_path),
+                    token=auth_token,
+                )
+                logging.info(f"Model downloaded successfully to: {downloaded_path}")
+                return str(save_path)
+            except KeyboardInterrupt:
+                logging.warning("Download interrupted by user. Re-run the script to resume.")
+                return None
+            except Exception as e:
+                if attempt < max_retries:
+                    logging.warning(f"Attempt {attempt}/{max_retries} failed: {e}. Retrying...")
+                else:
+                    raise
 
     except Exception as e:
         logging.error(f"Error downloading model: {e}")

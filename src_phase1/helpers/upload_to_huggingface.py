@@ -14,9 +14,9 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_REPO_ID = "PhillipGre/Llama-2-7b_sctt_regression"
-DEFAULT_OLDGOOD_DIR = "Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf"
-DEFAULT_BEST_CHECKPOINT_DIR = "Llama-2-7b_sctt_regression_oldgood/sctt_results_LORA_10_epochs_Llama-2-7b-chat-hf/checkpoint-6000"
+DEFAULT_REPO_ID = "PhillipGre/llama2-13b-sctt-regression"
+DEFAULT_OLDGOOD_DIR = "13b_regression_backup/sctt_results_regression_LORA_10_epochs_Llama-2-13b-chat-hf"
+DEFAULT_BEST_CHECKPOINT_DIR = "13b_regression_backup/sctt_results_regression_LORA_10_epochs_Llama-2-13b-chat-hf/checkpoint-5990"
 
 REQUIRED_INFERENCE_FILES = [
     "adapter_config.json",
@@ -247,7 +247,7 @@ def verify_remote_full_upload(repo_id: str, token: str, source_dir: Path) -> Non
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Upload the 7B SCTT LoRA model to Hugging Face with preferred+fallback file sourcing."
+        description="Upload the 13B SCTT LoRA model to Hugging Face with preferred+fallback file sourcing."
     )
     parser.add_argument("--repo-id", default=DEFAULT_REPO_ID, help="Target Hugging Face model repo ID")
     parser.add_argument(

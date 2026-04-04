@@ -20,6 +20,9 @@ checkpoint-*/
 !all_sctt_jrt.csv
 !sctt_item-generalization_jrt.csv
 
+# Images
+*.png
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -37,5 +40,9 @@ checkpoint-*/
 .cache/
 transformers_cache/
 
-# Local model directory
-models/Llama-2-7b_sctt_regression/
+# Local model directories (large files — do not commit to GitHub)
+models/
+downloaded_models/
+downloaded_adapters/
+13b_regression_backup/
+Llama-2-7b_sctt_regression_oldgood/

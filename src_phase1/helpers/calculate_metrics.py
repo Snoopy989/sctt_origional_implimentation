@@ -1,3 +1,12 @@
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[2] / '.env')
+
 import pandas as pd
 import numpy as np
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -12,13 +21,19 @@ def calculate_metrics(preds, true):
     return mae, mse, rmse, r2, corr
 
 def main():
-    splits = ['train', 'test', 'validation','heldout']
+    adapter_name = os.getenv('ADAPTER_NAME', 'Llama-2-7b_sctt_regression')
+    epochs = int(os.getenv('EPOCHS', '10'))
+    expname = f'LORA_{epochs}_epochs'
+    results_base = Path(__file__).resolve().parents[2] / 'results' / 'training' / adapter_name
+
+    print(f'Model:   {adapter_name}')
+    print(f'Expname: {expname}')
+    print(f'Results: {results_base}')
+
+    splits = ['train', 'test', 'validation', 'heldout']
 
     for split in splits:
-        file_path = f'results/training/{split}_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv'
-
-# heldout_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv
-# heldout_output_inference_LORA_10_epochs_Llama-2-7b-chat-hf.csv
+        file_path = results_base / f'{split}_output_inference_{expname}_{adapter_name}.csv'
         try:
             df = pd.read_csv(file_path)
             preds = df['preds'].values
